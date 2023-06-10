@@ -1,0 +1,52 @@
+.ck .isresize-handle {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: red;
+}
+.isresize-handle-top {
+    top: -10px;
+    left: 50%;
+}
+
+/*
+.ck .is-widget__resizer__handle {
+	position: absolute;
+
+	pointer-events: all;
+
+	&.is-widget__resizer__handle-top-left,
+	&.is-widget__resizer__handle-bottom-right {
+		cursor: nwse-resize;
+        width: 20px;
+        height: 20px;
+        display: block;
+        background-color: red;
+	}
+
+	&.is-widget__resizer__handle-top-right,
+	&.is-widget__resizer__handle-bottom-left {
+		cursor: nesw-resize;
+	}
+}
+*/
+
+.ck .is-widget__resizer__handle {
+	position: absolute;
+
+	pointer-events: all;
+}
+
+
+.ck .is-widget__resizer__handle.is-widget__resizer__handle-top-left {
+		cursor: nwse-resize;
+        width: 20px;
+        height: 20px;
+        display: block;
+        background-color: red;
+        top: 0px;
+        left: 50%;
+}
+
+

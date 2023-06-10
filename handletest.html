@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handle test</title>
+    <style>
+        .handlehost {
+            margin: 20px;
+            width: 400px;
+            height: 300px;
+            padding: 10px;
+            background-color: yellow;
+            position: absolute;
+            top: 200px;
+            left: 20px;
+        }
+        .handle {
+            width: 15px;
+            height: 15px;
+            background-color: red;
+            position: absolute;
+        }
+        .top-handle {
+            top: -7px;
+            left: 50%;
+        }
+        .bottom-handle {
+            bottom: -7px;
+            left: 50%;
+        }
+        .left-handle {
+            top: 50%;
+            left: -7px;
+        }
+        .right-handle {
+            top: 50%;
+            right: -7px;
+        }
+    </style>
+</head>
+<body>
+    <h1>This is a test for resizing handles</h1>
+    <div class="handlehost">
+        HandleHost
+        <div class="handle top-handle"></div>
+        <div class="handle bottom-handle"></div>
+        <div class="handle left-handle"></div>
+        <div class="handle right-handle"></div>
+    </div>
+</body>
+</html>
