@@ -28,14 +28,23 @@ export default class IsResize extends Plugin {
      * The structure of a single IsPencil Elemet is as follows
      * -------------------------------------------------------
      * 
-     * The outermost Element (widget) is at the different levels:
+     * 'widget' The outermost Element (widget) is at the different levels:
      * 
      *  1. 'no special name' --> an <isPencil> model node.
-     *  2. 'viewElement' --> a <div> of class "ispcl-fitcontent"
-     *  3. 'widgetWrapper' --> the DOM element corresponding to 'viewElement'
+     *  2. 'widgetViewElement' --> a <div> of class "ispcl-fitcontent"
+     *  3. 'widgetDomElement' --> the DOM element corresponding to 'widgetViewElement'
      * 
-     * - viewElement [The outermost element consisting of a div of class "ispcl-fitcontent"]
-     *         - dimensionHolder [The element determining width and height consisting of a canvas of class "ispcl-canvas"]
+     * 'canvas' The canvas contained in the widget, responsible for dimensioning is at different levels
+     * 
+     *  1. 'no special name' --> an <ispencilCanvas> model node
+     *  2. 'canvasViewElement' --> a <canvas> of class "ispcl-canvas"
+     *  3. 'canvasDomElement' --> the DOM element corresponding to 'canvasViewElement'. Returned by getCanvasDomElement
+     * 
+     * 'resizer' An Element, that does not exist in the model
+     * 
+     *  1. DOES NOT APPLY
+     *  2. 'resizerViewElement' --> a <div> of class "ck-widget__resizer"
+     *  3. 'resizerDomElement' --> the DOM element corresponding to 'resizerViewElement'
      * 
      */
     init() {
@@ -47,12 +56,12 @@ export default class IsResize extends Plugin {
         // https://github.com/ckeditor/ckeditor5/issues/10156
         // https://github.com/ckeditor/ckeditor5/issues/10266
         this.editor.model.document.on('change', () => {
-            for (const [viewElement, resizer] of this._resizers) {
+            for (const [widgetViewElement, resizer] of this._resizers) {
                 // isAttached() Returns true if the node is in a tree rooted in the document (is a descendant of one of its roots).
-                if (!viewElement.isAttached()) {
-                    this._resizers.delete(viewElement);
+                if (!widgetViewElement.isAttached()) {
+                    this._resizers.delete(widgetViewElement);
                     resizer.destroy();
-                    console.log( 'check remotion of view element', viewElement )
+                    console.log( 'check remotion of view element', widgetViewElement )
                 }
             }
         }, { priority: 'lowest' });
@@ -64,36 +73,36 @@ export default class IsResize extends Plugin {
                 if ( selectedModelElement?.name == 'isPencil' ) {
                     // console.log( 'downcastDispatcher on selection of isPencil' );
                     // mapper gets the view document fragment corresponding to its argument 'modelDocumentFragment'
-                    const viewElement = editing.mapper.toViewElement( selectedModelElement );
+                    const widgetViewElement = editing.mapper.toViewElement( selectedModelElement );
                    
-                    let dimensionHolder = null;
-                    const children = viewElement.getChildren();
+                    let canvasViewElement = null;
+                    const children = widgetViewElement.getChildren();
                     for (let child of children) {
                         if (child.hasClass( 'ispcl-canvas' )) {
-                            dimensionHolder = child;
+                            canvasViewElement = child;
                             break;
                         }
                     }
                     this._options = {};
-                    this._options.viewElement = viewElement; // The widget element, a div of class "ispcl-fitcontent"
-                    this._options.dimensionHolder = dimensionHolder; // The canvas, a canvas within viewElement
+                    this._options.widgetViewElement = widgetViewElement; // The widget element, a div of class "ispcl-fitcontent"
+                    this._options.canvasViewElement = canvasViewElement; // The canvas, a canvas within widgetViewElement
                     this._options.editor = this.editor;
-                    // widgetWrapper is viewElement on DOM level
-                    // Resize host is dimensionHolder on DOM level
-                    this._options.getResizeHost = function( widgetWrapper ) {
-                        const children = widgetWrapper.children;
+                    // widgetDomElement is widgetViewElement on DOM level
+                    // Returns the canvasDomElement from the widgetDomElement
+                    this._options.getCanvasDomElement = function( widgetDomElement ) {
+                        const children = widgetDomElement.children;
                         for (let child of children) {
                             if (child.className == 'ispcl-canvas' ) {
                                 return child;
                             }
                         }
                     };
-                    // Handle host is viewElement on DOM level
-                    this._options.getHandleHost = function( widgetWrapper ) {
-                        return widgetWrapper; // In this implementation HandleHost is the widgetWrapper itself 
+                    // Handle host is widgetViewElement on DOM level
+                    this._options.getHandleHost = function( widgetDomElement ) {
+                        return widgetDomElement; // In this implementation HandleHost is the widgetDomElement itself 
                     };
-                    this._options.isCentered = function( widgetWrapper) {
-                        if ( widgetWrapper._options.viewElement.hasClass( 'ispcl-centerpos' ) ) {
+                    this._options.isCentered = function( widgetDomElement) {
+                        if ( widgetDomElement._options.widgetViewElement.hasClass( 'ispcl-centerpos' ) ) {
                             return true;
                         }
                         return false;
@@ -128,11 +137,11 @@ export default class IsResize extends Plugin {
     /**
      * Returns a resizer created for a given view element (widget element).
      *
-     * @param {module:engine/view/containerelement~ContainerElement} viewElement View element associated with the resizer.
+     * @param {module:engine/view/containerelement~ContainerElement} widgetViewElement View element associated with the resizer.
      * @returns {module:ispencil/resize/isresizer~IsResizer|undefined}
      */
-    getResizerByViewElement(viewElement) {
-        return this._resizers.get(viewElement);
+    getResizerByViewElement(widgetViewElement) {
+        return this._resizers.get(widgetViewElement);
     }
     
     /**
@@ -171,13 +180,13 @@ export default class IsResize extends Plugin {
 	_attachTo( options ) {
         console.log(' IsResize#_attachTo with options', options );
         let resizer = null;
-        if ( this._hasResizer( options.viewElement ) ) {
-            resizer = this.getResizerByViewElement( options.viewElement );
+        if ( this._hasResizer( options.widgetViewElement ) ) {
+            resizer = this.getResizerByViewElement( options.widgetViewElement );
             console.log( 'IsResize#_attachTo found an existing resizer', resizer );
         } else {
             resizer = new IsResizer( options );
             resizer.attach();
-            this._resizers.set( options.viewElement, resizer );
+            this._resizers.set( options.widgetViewElement, resizer );
             console.log( 'IsResize#_attachTo registered a new resizer', resizer );
         }
         const viewSelection = this.editor.editing.view.document.selection;
@@ -237,9 +246,9 @@ export default class IsResize extends Plugin {
         }
     }
 
-    _hasResizer( viewElement ) {
-        // console.log( '_hasResizer viewElement', viewElement );
-        const children = viewElement.getChildren();
+    _hasResizer( widgetViewElement ) {
+        // console.log( '_hasResizer widgetViewElement', widgetViewElement );
+        const children = widgetViewElement.getChildren();
         for (let child of children) {
             // console.log( 'child', child );
             if (child.name == 'div' && child.hasClass( 'ck-widget__resizer' ) ) {

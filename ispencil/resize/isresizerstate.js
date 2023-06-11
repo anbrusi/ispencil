@@ -23,12 +23,6 @@ export default class IsResizeState extends ObservableMixin() {
          * @member {Number} #originalHeight
          */
         /**
-         * The original width (percents) of the resized object when the resize process was started.
-         *
-         * @readonly
-         * @member {Number} #originalWidthPercents
-         */
-        /**
          * The position of the handle that initiated the resizing. E.g. `"top-left"`, `"bottom-right"` etc. or `null`
          * if unknown.
          *
@@ -37,14 +31,6 @@ export default class IsResizeState extends ObservableMixin() {
          * @member {String|null} #activeHandlePosition
          */
         this.set('activeHandlePosition', null);
-        /**
-         * The width (percents) proposed, but not committed yet, in the current resize process.
-         *
-         * @readonly
-         * @observable
-         * @member {Number|null} #proposedWidthPercents
-         */
-        this.set('proposedWidthPercents', null);
         /**
          * The width (pixels) proposed, but not committed yet, in the current resize process.
          *
@@ -61,14 +47,6 @@ export default class IsResizeState extends ObservableMixin() {
          * @member {Number|null} #proposedHeightPixels
          */
         this.set('proposedHeight', null);
-        this.set('proposedHandleHostWidth', null);
-        this.set('proposedHandleHostHeight', null);
-        /**
-         * A width to height ratio of the resized image.
-         *
-         * @readonly
-         * @member {Number} #aspectRatio
-         */
         /**
          * @private
          * @type {module:widget/widgetresize~ResizerOptions}
@@ -90,14 +68,6 @@ export default class IsResizeState extends ObservableMixin() {
     get originalHeight() {
         return this._originalHeight;
     }
-    /*
-    get originalWidthPercents() {
-        return this._originalWidthPercents;
-    }
-    get aspectRatio() {
-        return this._aspectRatio;
-    }
-    */
 
     /**
      *
@@ -105,50 +75,19 @@ export default class IsResizeState extends ObservableMixin() {
      * @param {HTMLElement} domHandleHost
      * @param {HTMLElement} domResizeHost
      */
-    begin(domResizeHandle, domHandleHost, domResizeHost) {
-        const clientRect = new Rect(domHandleHost);
+    begin(domResizeHandle, widgetDomElement) {
+        const clientRect = new Rect(widgetDomElement);
         this.activeHandlePosition = getHandlePosition(domResizeHandle);
-        this._referenceCoordinates = getAbsoluteBoundaryPoint(domHandleHost, getOppositePosition(this.activeHandlePosition));
+        this._referenceCoordinates = getAbsoluteBoundaryPoint(widgetDomElement, getOppositePosition(this.activeHandlePosition));
         this._originalWidth = clientRect.width;
         this._originalHeight = clientRect.height;
-        /*
-        this._aspectRatio = clientRect.width / clientRect.height;
-        const widthStyle = domResizeHost.style.width;
-        if (widthStyle && widthStyle.match(/^\d+(\.\d*)?%$/)) {
-            this._originalWidthPercents = parseFloat(widthStyle);
-        }
-        else {
-            this._originalWidthPercents = calculateHostPercentageWidth(domResizeHost, clientRect);
-        }
-        */
     }
 
     update(newSize) {
         this.proposedWidth = newSize.width;
         this.proposedHeight = newSize.height;
-        /*
-        this.proposedWidthPercents = newSize.widthPercents;
-        this.proposedHandleHostWidth = newSize.handleHostWidth;
-        this.proposedHandleHostHeight = newSize.handleHostHeight;
-        */
     }
 }
-
-
-// Calculates a relative width of a `domResizeHost` compared to it's parent in percents.
-//
-// @private
-// @param {HTMLElement} domResizeHost
-// @param {module:utils/dom/rect~Rect} resizeHostRect
-// @returns {Number}
-/*
-function calculateHostPercentageWidth(domResizeHost, resizeHostRect) {
-    const domResizeHostParent = domResizeHost.parentElement;
-    // Need to use computed style as it properly excludes parent's paddings from the returned value.
-    const parentWidth = parseFloat(domResizeHostParent.ownerDocument.defaultView.getComputedStyle(domResizeHostParent).width);
-    return resizeHostRect.width / parentWidth * 100;
-}
-*/
 
 // Returns coordinates of the top-left corner of an element, relative to the document's top-left corner.
 //

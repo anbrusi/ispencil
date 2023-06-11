@@ -58,18 +58,18 @@ export default class IsResizer extends ObservableMixin() {
      * @private
      * @member {HTMLElement|null}
      */
-    get _domResizerWrapper() {
-        return this._options.editor.editing.view.domConverter.mapViewToDom(this._viewResizerWrapper);
+    get _resizerDomElement() {
+        return this._options.editor.editing.view.domConverter.mapViewToDom(this._resizerViewElement);
     }
 
     attach() {
         console.log('IsResizer#attach with options', this._options);
         const that = this;
-        const widgetElement = this._options.viewElement;
+        const widgetViewElement = this._options.widgetViewElement;
         const editingView = this._options.editor.editing.view;
         editingView.change(writer => {
             console.log( 'IsResizer editingView change going to execute' );
-            const viewResizerWrapper = writer.createUIElement('div', {
+            const resizerViewElement = writer.createUIElement('div', {
                 class: 'ck ck-reset_all ck-widget__resizer'
             }, function (domDocument) {
                 const domElement = this.toDomElement(domDocument);
@@ -77,12 +77,12 @@ export default class IsResizer extends ObservableMixin() {
                 that._appendHandles(domElement);
                 return domElement;
             });
-            console.log( 'IsResizer#attach created viewResizerWarapper', viewResizerWrapper );
+            console.log( 'IsResizer#attach created viewResizerWarapper', resizerViewElement );
             // Append the resizer wrapper to the widget's wrapper.
-            writer.insert(writer.createPositionAt(widgetElement, 'end'), viewResizerWrapper);
-            writer.addClass('ck-widget_with-resizer', widgetElement);
+            writer.insert(writer.createPositionAt(widgetViewElement, 'end'), resizerViewElement);
+            writer.addClass('ck-widget_with-resizer', widgetViewElement);
             // Note that this would refer to a property of esitingView
-            that._viewResizerWrapper = viewResizerWrapper;
+            that._resizerViewElement = resizerViewElement;
             console.log( 'IsResizer#attach end of editingView.change' );
             if (!this.isVisible) {
                 this.hide();
@@ -113,9 +113,9 @@ export default class IsResizer extends ObservableMixin() {
     begin(domResizeHandle) {
         this._state = new IsResizeState(this._options);
         console.log('begin with domResizeHandle', domResizeHandle);
-        // this._sizeView._bindToState(this._options, this.state);
-        this._initialViewWidth = this._options.viewElement.getStyle('width');
-        this.state.begin(domResizeHandle, this._getHandleHost(), this._getResizeHost());
+        this._initialWidgetViewWidth = this._options.widgetViewElement.getStyle('width');
+        this._initialWidgetViewHeight = this._options.widgetViewElement.getStyle('height');
+        this.state.begin(domResizeHandle, this._getWidgetDomElement());
     }
 
     /**
@@ -129,34 +129,15 @@ export default class IsResizer extends ObservableMixin() {
         const newSize = this._proposeNewSize(domEventData);
         const editingView = this._options.editor.editing.view;
         editingView.change(writer => {
-            /*
-            const unit = this._options.unit || '%';
-            const newWidth = (unit === '%' ? newSize.widthPercents : newSize.width) + unit;
-            */
-            writer.setStyle(newSize, this._options.viewElement);
+            writer.setStyle(newSize, this._options.widgetViewElement);
         });
-        // Get an actual image width, and:
-        // * reflect this size to the resize wrapper
-        // * apply this **real** size to the state
-        const domHandleHost = this._getHandleHost();
+        const domHandleHost = this._getWidgetDomElement();
         const domHandleHostRect = new Rect(domHandleHost);
-        /*
-        const handleHostWidth = Math.round(domHandleHostRect.width);
-        const handleHostHeight = Math.round(domHandleHostRect.height);
-        */
         // Handle max-width limitation.
         const domResizeHostRect = new Rect(domHandleHost);
         newSize.width = Math.round(domResizeHostRect.width);
         newSize.height = Math.round(domResizeHostRect.height);
         this.redraw(domHandleHostRect);
-
-        /*
-        this.state.update({
-            ...newSize,
-            handleHostWidth,
-            handleHostHeight
-        });
-        */
 
         this.state.update({
             ...newSize
@@ -164,20 +145,31 @@ export default class IsResizer extends ObservableMixin() {
     }
 
     /**
-     * Applies the geometry proposed with the resizer.
+     * Applies to the canvas the geometry proposed by the resizer.
      *
      * @fires commit
      */
     commit() {
-        const newValue = this.state.proposedWidth;
+        const newWidth = this.state.proposedWidth;
+        const newHeight = this.state.proposedHeight;
         // Both cleanup and onCommit callback are very likely to make view changes. Ensure that it is made in a single step.
         this._options.editor.editing.view.change(() => {
             this._cleanup();
             // console.log('IsResizer#commit calling this._options.onCommit', this._options );
             // this._options.onCommit(newValue); // Probably superfluous
 
-            // this._options.dimensionHolder is NOT the same as ths._getResizeHost
-            this._options.dimensionHolder._setAttribute('width', newValue);
+            /*
+            this._options.canvasViewElement._setAttribute('width', newWidth);
+            this._options.canvasViewElement._setAttribute('height', newHeight)
+            */
+
+            const newSize = {
+                width: newWidth,
+                height: newHeight
+            }
+            const editor = this._options.editor;
+            editor.execute( 'isPencilSizeCommand', newSize );
+
         });
     }
 
@@ -187,7 +179,7 @@ export default class IsResizer extends ObservableMixin() {
     show() {
         const editingView = this._options.editor.editing.view;
         editingView.change(writer => {
-            writer.removeClass('ck-hidden', this._viewResizerWrapper);
+            writer.removeClass('ck-hidden', this._resizerViewElement);
         });
     }
 
@@ -197,7 +189,7 @@ export default class IsResizer extends ObservableMixin() {
     hide() {
         const editingView = this._options.editor.editing.view;
         editingView.change(writer => {
-            writer.addClass('ck-hidden', this._viewResizerWrapper);
+            writer.addClass('ck-hidden', this._resizerViewElement);
         });
     }
 
@@ -224,68 +216,29 @@ export default class IsResizer extends ObservableMixin() {
      */
     redraw(handleHostRect) {
         // console.log('IsResizer#redraw begin');
-        // domWrapper is the DOM container of the entire resize UI. It is reeturned by the getter this.get _domResizerWrapper().
-        // It is the conversion to DOM of this._viewResizerWrapper
+        // resizerDomElement is the DOM container of the entire resize UI. It is reeturned by the getter this.get _resizerDomElement().
+        // It is the conversion to DOM of this._resizerViewElement
         // Note that this property will have a value only after the element bound with the resizer is rendered
         // -------------
-        // domWrapper is the special div of class ck-widget__resizer built in the editing pipeline
-        const domWrapper = this._domResizerWrapper; // Built by a getter. It is the conversion to Model of viewResizerWrapper below
-        // console.log('domWrapper', domWrapper);
+        // resizerDomElement is the special div of class ck-widget__resizer built in the editing pipeline
+        const resizerDomElement = this._resizerDomElement; // Built by a getter. It is the conversion to Model of viewResizerWrapper below
         // Refresh only if resizer exists in the DOM.
-        if (!existsInDom(domWrapper)) {
+        if (!existsInDom(resizerDomElement)) {
             console.log( 'IsResizer#redraw premature end due to missing resizer in DOM' );
             return;
         }
-        // widgetWrapper is the DOM element built to contain the widget. 
-        const widgetWrapper = domWrapper.parentElement;
-        // console.log('widgetWrapper', widgetWrapper);
-        // const handleHost = this._getHandleHost(); // We use widgetWrapper as handleHost
-        // console.log('handleHost', handleHost);
-        // _viewResizerWrapper is defined by this.attach. It is the editing view element of the div of class ck-widget__resizer
-        const resizerWrapper = this._viewResizerWrapper;
-        // console.log('resizerWrapper', resizerWrapper);
+        // _resizerViewElement is defined by this.attach. It is the editing view element of the div of class ck-widget__resizer
+        const resizerViewElement = this._resizerViewElement;
         const currentDimensions = [
-            /*
-            resizerWrapper.getStyle('width'),
-            resizerWrapper.getStyle('height'),
-            resizerWrapper.getStyle('left'),
-            resizerWrapper.getStyle('top')
-            */
-
-            resizerWrapper.getStyle('width'),
-            resizerWrapper.getStyle('height')
+            resizerViewElement.getStyle('width'),
+            resizerViewElement.getStyle('height')
         ];
         // console.log('currentDimensions', currentDimensions);
 
 
         let newDimensions;
-        /* In our case widgetWrapper === handleHost. Thus handleHost is not needed
-        // if (widgetWrapper.isSameNode(handleHost)) {
-        if (widgetWrapper === handleHost) {
-            const clientRect = handleHostRect || new Rect(handleHost);
-            newDimensions = [
-                clientRect.width + 'px',
-                clientRect.height + 'px',
-                undefined,
-                undefined
-            ];
-        }
-        // In case a resizing host is not a widget wrapper, we need to compensate
-        // for any additional offsets the resize host might have. E.g. wrapper padding
-        // or simply another editable. By doing that the border and resizers are shown
-        // only around the resize host.
-        else {
-            newDimensions = [
-                handleHost.offsetWidth + 'px',
-                handleHost.offsetHeight + 'px',
-                handleHost.offsetLeft + 'px',
-                handleHost.offsetTop + 'px'
-            ];
-        } 
-        */
-
-        // Replacement
-        const clientRect = handleHostRect || new Rect(widgetWrapper);
+        const widgetDomElement = resizerDomElement.parentElement;
+        const clientRect = handleHostRect || new Rect(widgetDomElement);
         newDimensions = [
             clientRect.width + 'px',
             clientRect.height + 'px'
@@ -302,7 +255,7 @@ export default class IsResizer extends ObservableMixin() {
                 writer.setStyle({
                     width: newDimensions[0],
                     height: newDimensions[1]
-                }, resizerWrapper);
+                }, resizerViewElement);
             });
             console.log( 'IsResizer#redraw changed dimensions in resizer' );
         }
@@ -311,11 +264,10 @@ export default class IsResizer extends ObservableMixin() {
     }
 
     containsHandle(domElement) {
-        return this._domResizerWrapper.contains(domElement);
+        return this._resizerDomElement.contains(domElement);
     }
 
     static isResizeHandle(domElement) {
-        // return domElement.classList.contains('is-widget__resizer__handle');
         return domElement.classList.contains('ck-widget__resizer__handle');
     }
 
@@ -327,9 +279,9 @@ export default class IsResizer extends ObservableMixin() {
      * @protected
      * @returns {HTMLElement}
      */
-    _getResizeHost() {
-        const widgetWrapper = this._domResizerWrapper.parentElement;
-        return this._options.getResizeHost(widgetWrapper);
+    _getCanvasDomElement() {
+        const widgetDomElement = this._resizerDomElement.parentElement;
+        return this._options.getCanvasDomElement(widgetDomElement);
     }
 
     /**
@@ -343,9 +295,9 @@ export default class IsResizer extends ObservableMixin() {
      * @protected
      * @returns {HTMLElement}
      */
-    _getHandleHost() {
-        const widgetWrapper = this._domResizerWrapper.parentElement;
-        return this._options.getHandleHost(widgetWrapper);
+    _getWidgetDomElement() {
+        const widgetDomElement = this._resizerDomElement.parentElement;
+        return widgetDomElement;
     }
 
     /**
@@ -361,12 +313,12 @@ export default class IsResizer extends ObservableMixin() {
         const resizerPositions = ['bottom-right', 'bottom-left'];
         // const resizerPositions = ['top', 'bottom', 'left', 'right'];
         for (const currentPosition of resizerPositions) {
-            domElement.appendChild((new Template({
+            domElement.appendChild(new Template({
                 tag: 'div',
                 attributes: {
                     class: `ck-widget__resizer__handle ${getResizerClass(currentPosition)}`
                 }
-            }).render()));
+            }).render());
 
             /* This was a debugging alternative
             const template = new Template({
@@ -392,9 +344,9 @@ export default class IsResizer extends ObservableMixin() {
     _cleanup() {
         const editingView = this._options.editor.editing.view;
         editingView.change(writer => {
-            writer.setStyle('width', this._initialViewWidth, this._options.viewElement);
+            writer.setStyle('width', this._initialWidgetViewWidth, this._options.widgetViewElement);
+            writer.setStyle('height', this._initialWidgetViewHeight, this._options.widgetViewElement);
         });
-        console.log('setStyle of this._options.viewElement to width=', this._initialViewWidth);
     }
 
     /**
@@ -403,8 +355,7 @@ export default class IsResizer extends ObservableMixin() {
      * @private
      * @param {Event} domEventData Event data that caused the size update request. It should be used to calculate the proposed size.
      * @returns {Object} return
-     * @returns {Number} return.width Proposed width.
-     * @returns {Number} return.height Proposed height.
+     * @returns {Object} return an object of proposed dimensions with properties 'width' and 'height'
      */
     _proposeNewSize(domEventData) {
         const state = this.state;
@@ -439,24 +390,12 @@ export default class IsResizer extends ObservableMixin() {
         if (isCentered) {
             enlargement.x *= 2;
         }
-        // const resizeHost = this._getResizeHost();
         // The size proposed by the user. It does not consider the aspect ratio.
         let width = Math.abs(state.originalWidth + enlargement.x);
         let height = Math.abs(state.originalHeight + enlargement.y);
-        // Dominant determination must take the ratio into account.
-        /*
-        const dominant = width / state.aspectRatio > height ? 'width' : 'height';
-        if (dominant == 'width') {
-            height = width / state.aspectRatio;
-        }
-        else {
-            width = height * state.aspectRatio;
-        }
-        */
         return {
             width: Math.round(width) + 'px',
             height: Math.round(height) + 'px'
-            // widthPercents: Math.min(Math.round(state.originalWidthPercents / state.originalWidth * width * 100) / 100, 100)
         };
     }
 }

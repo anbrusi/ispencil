@@ -133,7 +133,7 @@ class dispatcher {
                     width: 800,
                     height: 200,
                     hasBorder: true,
-                    position: "right"
+                    position: "center"
                 }
             } )
             .then( editor => {

@@ -5,7 +5,7 @@ import Widget from '@ckeditor/ckeditor5-widget/src/widget';
 import { toWidget } from '@ckeditor/ckeditor5-widget/src/utils';
 import IsPencilInsertCommand from './ispencilinsertcommand';
 import IsPencilPosCommand from './ispencilposcommand';
-// import IsResize from './resize/isresize';
+import IsPencilSizeCommand from './ispencilsizecommand';
 
 export default class IsPencilEditing extends Plugin {
 
@@ -23,10 +23,7 @@ export default class IsPencilEditing extends Plugin {
         this._defineConverters();
         this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
         this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
-        /*
-        const isResize = this.editor.plugins.get( IsResize );
-        isResize.initResizer( { name: 'isPencil' } );
-        */
+        this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
     }
 
     _defineSchema() {
