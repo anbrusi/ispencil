@@ -173,6 +173,7 @@ export default class IsResize extends Plugin {
         // selectedResizer.isVisible is set in IsRezizer by binding isVisible to (isEnabled, isSelected) => isEnabled && isSelected
         if (this.selectedResizer && this.selectedResizer.isVisible) {
             // console.log( 'IsResize redraw selected resizer')
+            this.selectedResizer.setHandleVisibility();
             this.selectedResizer.redraw();
         }
     }

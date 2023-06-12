@@ -62,6 +62,22 @@ export default class IsResizer extends ObservableMixin() {
         return this._options.editor.editing.view.domConverter.mapViewToDom(this._resizerViewElement);
     }
 
+    /**
+     * Returns one of 'left' 'center', 'right' or null
+     */
+    get _widgetPosition() {
+        const widgetViewElement = this._options.widgetViewElement;
+        if (widgetViewElement.hasClass( 'ispcl-leftpos' )) {
+            return 'left';
+        } else if (widgetViewElement.hasClass( 'ispcl-centerpos' )) {
+            return 'center';
+        } else if (widgetViewElement.hasClass( 'ispcl-rightpos' )) {
+            return 'right';
+        } else {
+            return null;
+        }
+    }
+
     attach() {
         console.log('IsResizer#attach with options', this._options);
         const that = this;
@@ -158,11 +174,6 @@ export default class IsResizer extends ObservableMixin() {
             // console.log('IsResizer#commit calling this._options.onCommit', this._options );
             // this._options.onCommit(newValue); // Probably superfluous
 
-            /*
-            this._options.canvasViewElement._setAttribute('width', newWidth);
-            this._options.canvasViewElement._setAttribute('height', newHeight)
-            */
-
             const newSize = {
                 width: newWidth,
                 height: newHeight
@@ -181,6 +192,7 @@ export default class IsResizer extends ObservableMixin() {
         editingView.change(writer => {
             writer.removeClass('ck-hidden', this._resizerViewElement);
         });
+        this.setHandleVisibility();
     }
 
     /**
@@ -191,6 +203,38 @@ export default class IsResizer extends ObservableMixin() {
         editingView.change(writer => {
             writer.addClass('ck-hidden', this._resizerViewElement);
         });
+    }
+
+    /**
+     * Sets all handles to visible, by remowing the 'ck-hidden' class and then selectively hides
+     * bottom-left handle for left floating and
+     * bottom-right for right floating widgets
+     */
+    setHandleVisibility() {
+        if (this._resizerDomElement) {
+            // Establish the default, by removing all handle hiding
+            const children = this._resizerDomElement.childNodes;
+            for (let handle of children) {
+                handle.classList.remove('ck-hidden');
+            }
+            let hclass = null;
+            // Get the position of the widget
+            if  ( this._widgetPosition == 'left') {
+                // Hide bottom-left handle
+                hclass = getResizerClass( 'bottom-left' );
+            } else if (this._widgetPosition == 'right') {
+                // Hide bottom-right handle
+                hclass = getResizerClass( 'bottom-right' );
+            }
+            if (hclass) {
+                const children = this._resizerDomElement.childNodes;
+                for (let handle of children) {
+                    if (handle.classList.contains(hclass)) {
+                        handle.classList.add('ck-hidden');
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -324,7 +368,6 @@ export default class IsResizer extends ObservableMixin() {
             const template = new Template({
                 tag: 'div',
                 attributes: {
-                    // class: `is-widget__resizer__handle ${getResizerClass(currentPosition)}`
                     class: `ck-widget__resizer__handle ${getResizerClass(currentPosition)}`
                 }
             });
