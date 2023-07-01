@@ -7,6 +7,11 @@ import leftPosIcon from '../theme/icons/ispcl-i-floatleft.svg';
 import centerPosIcon from '../theme/icons/ispcl-i-center.svg';
 import rightPosIcon from '../theme/icons/ispcl-i-floatright.svg';
 import IsPencilToolbar from './ispenciltoolbar';
+import SplitButtonView from '@ckeditor/ckeditor5-ui/src/dropdown/button/splitbuttonview';
+import pencilIcon from '@ckeditor/ckeditor5-core/theme/icons/pencil.svg';
+import IsCmdPanel from './ispen/iscmdpanel';
+import { createDropdown } from '@ckeditor/ckeditor5-ui';
+import { Collection } from '@ckeditor/ckeditor5-utils';
 
 export default class IsPencilUI extends Plugin {
 
@@ -38,6 +43,26 @@ export default class IsPencilUI extends Plugin {
             return buttonView;
         } );
 
+
+        // Pencil insert button with dropdown in the editor toolbar
+        editor.ui.componentFactory.add( 'isPencilCockpit', locale => {
+            const command = editor.commands.get( 'isPencilInsertCommand' );
+            const dropdown = createDropdown( locale, SplitButtonView );
+            // At this point, we should not used the unqualified buttonView, since it duplicates to both buttons action and arrow
+            dropdown.buttonView.actionView.set( {
+                label: t( 'IsPencil' ),
+                icon: pencilIcon,
+                tooltip: true
+            } );
+            dropdown.bind('isEnabled').to(command);
+            dropdown.buttonView.actionView.on( 'execute', () => editor.execute( 'isPencilInsertCommand' ) );
+            // console.log( 'dropdown', dropdown );
+            const commandPanelView = new IsCmdPanel( locale, dropdown );
+            dropdown.panelView.children.add( commandPanelView );
+            // console.log( 'commandPanelView', commandPanelView );
+            return dropdown;
+        } );
+
         /**
          * The following are the buttons for the widget baloon toolbar
          * They show the current style of the related widget, by highlighting the corresponding icon.
@@ -66,7 +91,7 @@ export default class IsPencilUI extends Plugin {
                 icon: centerPosIcon,
                 tooltip: true
             } );
-            buttonView.bind( 'isOn' ).to( isPencilToolbar, 'centePosActive' );
+            buttonView.bind( 'isOn' ).to( isPencilToolbar, 'centerPosActive' );
             // Execute the command when the button is clicked
             this.listenTo( buttonView, 'execute', () => editor.execute( 'isPencilPosCommand', 'center' ) );
             return buttonView;

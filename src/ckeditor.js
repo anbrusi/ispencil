@@ -20,6 +20,7 @@ import ImageToolbar from '@ckeditor/ckeditor5-image/src/imagetoolbar';
 import ImageUpload from '@ckeditor/ckeditor5-image/src/imageupload';
 import Base64UploadAdapter from '@ckeditor/ckeditor5-upload/src/adapters/base64uploadadapter';
 import ImageResize from '@ckeditor/ckeditor5-image/src/imageresize';
+import MediaEmbed from '@ckeditor/ckeditor5-media-embed/src/mediaembed';
 
 // IsPencil additions
 import IsPencil from '../ispencil/ispencil';
@@ -29,11 +30,11 @@ export default class ClassicEditor extends ClassicEditorBase {}
 // Plugins to include in the build.
 ClassicEditor.builtinPlugins = [
 	Essentials,
+	Paragraph,
 	Bold,
 	Italic,
 	Heading,
 	List,
-	Paragraph,
 	Image,
 	ImageCaption,
 	ImageStyle,
@@ -41,6 +42,7 @@ ClassicEditor.builtinPlugins = [
 	ImageUpload,
 	Base64UploadAdapter,
 	ImageResize,
+	MediaEmbed,
 	IsPencil
 ];
 
@@ -56,7 +58,9 @@ ClassicEditor.defaultConfig = {
 			'numberedList',
 			'|',
 			'uploadImage',
-			'isPencil'
+			'mediaEmbed',
+			'isPencil',
+			'isPencilCockpit'
 		]
 	},
 	image: {
@@ -68,6 +72,9 @@ ClassicEditor.defaultConfig = {
 			'toggleImageCaption',
 			'imageTextAlternative'
 		]
+	},
+	mediaEmbed: {
+		previewsInData: true
 	},
 	isPencil: {
 		width: 400,

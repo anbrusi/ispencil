@@ -113,7 +113,10 @@ export default class IsPencilEditing extends Plugin {
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
                 const isPencilDiv = viewWriter.createContainerElement( 'div', { class: getIsPencilViewClasses( modelElement ) } );
-                return toWidget( isPencilDiv, viewWriter, { label: 'isPencil widget', hasSelectionHandle: true });
+                // return toWidget( isPencilDiv, viewWriter, { label: 'isPencil widget', hasSelectionHandle: true });
+                const widget = toWidget( isPencilDiv, viewWriter, { label: 'isPencil widget', hasSelectionHandle: true });
+                widget.on( 'change', () => console.log('change in widget'));
+                return widget;
             }
         } );
 

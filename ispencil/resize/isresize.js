@@ -71,7 +71,7 @@ export default class IsResize extends Plugin {
             if ( !modelSelection.isCollapsed ) {
                 const selectedModelElement = modelSelection.getSelectedElement();
                 if ( selectedModelElement?.name == 'isPencil' ) {
-                    // console.log( 'downcastDispatcher on selection of isPencil' );
+                    console.log( 'downcastDispatcher on selection of isPencil' );
                     // mapper gets the view document fragment corresponding to its argument 'modelDocumentFragment'
                     const widgetViewElement = editing.mapper.toViewElement( selectedModelElement );
                    
