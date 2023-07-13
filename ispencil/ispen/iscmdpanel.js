@@ -1,8 +1,12 @@
 // iscmdpanel
 import { DropdownPanelView } from '@ckeditor/ckeditor5-ui';
+import IsCmdToolbar from './iscmdtoolbar.js';
+
+// Icons, seems they must be imported individually, at least CKEditor does so in ckeditor5-core/index.js
+import eraseIcon from '@ckeditor/ckeditor5-core/theme/icons/eraser.svg';
+// Own icons, partially handcrafted
 import freePenIcon from '../../theme/icons/free-line.svg';
 import straightLinesIcon from '../../theme/icons/normal-line.svg';
-import eraseIcon from '@ckeditor/ckeditor5-core/theme/icons/eraser.svg';
 import blackIcon from '../../theme/icons/black-tile.svg';
 import redIcon from '../../theme/icons/red-tile.svg';
 import greenIcon from '../../theme/icons/green-tile.svg';
@@ -12,7 +16,7 @@ import mediumIcon from '../../theme/icons/medium.svg';
 import thickIcon from '../../theme/icons/thick.svg';
 import xthickIcon from '../../theme/icons/xthick.svg';
 
-import IsCmdToolbar from './iscmdtoolbar.js';
+
 
 export default class IsCmdPanel extends DropdownPanelView {
 

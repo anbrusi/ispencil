@@ -12,6 +12,7 @@ import pencilIcon from '@ckeditor/ckeditor5-core/theme/icons/pencil.svg';
 import IsCmdPanel from './ispen/iscmdpanel';
 import { createDropdown } from '@ckeditor/ckeditor5-ui';
 import { Collection } from '@ckeditor/ckeditor5-utils';
+import IsCanvas from './ispen/iscanvas';
 
 export default class IsPencilUI extends Plugin {
 
@@ -25,6 +26,7 @@ export default class IsPencilUI extends Plugin {
         const editor = this.editor;
         const t = editor.t;
         const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
+        const isCanvas = editor.plugins.get( IsCanvas );
 
         // This is the button in the editor toolbar
         editor.ui.componentFactory.add( 'isPencil', locale => {
@@ -60,6 +62,9 @@ export default class IsPencilUI extends Plugin {
             const commandPanelView = new IsCmdPanel( locale, dropdown );
             dropdown.panelView.children.add( commandPanelView );
             // console.log( 'commandPanelView', commandPanelView );
+            this.listenTo(commandPanelView, 'change:mode', () => isCanvas.changeMode(commandPanelView.mode ) );
+            this.listenTo(commandPanelView, 'change:color', () => isCanvas.changeColor(commandPanelView.color ) );
+            this.listenTo(commandPanelView, 'change:stroke', () => isCanvas.changeColor(commandPanelView.stroke ) );
             return dropdown;
         } );
 

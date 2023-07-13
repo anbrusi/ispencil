@@ -19,7 +19,7 @@ export default class IsCmdToolbar extends ToolbarView {
         const bind = this.bindTemplate;
 
         if ( buttons?.length > 0 ) {
-            console.log('buttons', buttons );
+            // console.log('buttons', buttons );
             for (let buttondef of buttons) {
                 const button = new IsCmdButton( locale, buttondef );
                 button.bind('activeCustomid').to(this, 'activeCustomid');
@@ -33,13 +33,13 @@ export default class IsCmdToolbar extends ToolbarView {
     activeCustomidHandler(evt) {
         // Not only button can become a focused element. Buttons are filtered out using the customid
         const focusedItem = this.focusTracker.focusedElement;
-        console.log('focused item', focusedItem);
+        // console.log('focused item', focusedItem);
         if (focusedItem?.attributes) {
             // Tis is a named node map
             const customid = focusedItem.attributes.getNamedItem('data-ispcl-customid');
             if (customid?.nodeValue) {
                 this.set('activeCustomid', customid.nodeValue);
-                console.log('IsCmdToolbar.activeCustomid changed to', customid.nodeValue);
+                // console.log('IsCmdToolbar.activeCustomid changed to', customid.nodeValue);
             }
         }
     }

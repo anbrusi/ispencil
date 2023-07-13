@@ -45,7 +45,8 @@ export default class IsPencilEditing extends Plugin {
         schema.register( 'isPencilCanvas', {
             isObject: true,            
             allowIn: 'isPencil',
-            allowAttributes: [ 'width', 'height' ]
+            // These are the model attribute names, which may differ from view attributte names
+            allowAttributes: [ 'width', 'height', 'content', 'uid' ]
         } );
     }
 
@@ -74,13 +75,17 @@ export default class IsPencilEditing extends Plugin {
             view: {
                 name: 'canvas',
                 classes: 'ispcl-canvas', // This is a fake class, with no definition in CSS
-                attributes: [ 'width', 'height' ]
+                attributes: [ 'width', 'height', 'data-ispcl-content', 'data-uid' ]
             },
             model: ( viewElement, { writer} ) => {
                 // console.log( 'upcasting isPencilCanvas', viewElement );
+                let viewContentElemen = viewElement.getAttribute( 'data-ispcl-content' );
+                console.log( 'upcating content element', viewContentElemen );
                 return writer.createElement( 'isPencilCanvas', {
                     width: viewElement.getAttribute( 'width' ),
-                    height: viewElement.getAttribute( 'height' )
+                    height: viewElement.getAttribute( 'height' ),
+                    content: viewElement.getAttribute( 'data-ispcl-content' ),
+                    uid: viewElement.getAttribute( 'data-uid' )
                 } );
             }
         } );
@@ -88,17 +93,19 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencil',
-                attributes: [ 'hasBorder', 'position']
+                attributes: [ 'hasBorder', 'position' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                return viewWriter.createContainerElement( 'div', { class: getIsPencilViewClasses( modelElement ) } );
+                return viewWriter.createContainerElement( 'div', {
+                     class: getIsPencilViewClasses( modelElement )
+                } );
             }
         } );
 
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height' ]
+                attributes: [ 'width', 'height', 'content', 'uid' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 return viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
@@ -123,7 +130,7 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'editingDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height' ]
+                attributes: [ 'width', 'height', 'content', 'uid' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 return viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
@@ -195,9 +202,13 @@ function getIsPencilViewClasses( modelElement ) {
  * @returns 
  */
 function getIsPencilCanvasViewConfig( modelElement ) {
-    return {
+    let config = {
         class: 'ispcl-canvas', // fake class needed for pattern identification. Could be used to color the canvas
         width: modelElement.getAttribute( 'width' ),
         height: modelElement.getAttribute( 'height' )
     } 
+    // Due to the '-' these must be treated separately
+    config['data-ispcl-content'] = modelElement.getAttribute( 'content' );
+    config['data-uid'] = modelElement.getAttribute( 'uid' );
+    return config;
 }

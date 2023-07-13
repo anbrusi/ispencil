@@ -24,7 +24,7 @@ export default class IsCmdButton extends ButtonView {
         } );
         this.bind('isOn').to(this, 'activeCustomid', () => { return this.activeCustomid == options.customid } );
         this.bind('bkcolor').to(this, 'activeCustomid', () => {
-            console.log('setting bk color');
+            // console.log('setting bk color');
             if (this.activeCustomid == options.customid) {
                 return 'lime'
             } else {

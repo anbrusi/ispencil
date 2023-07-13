@@ -1,6 +1,7 @@
 //ispencil5/ispencilinsertcommand
 
 import Command from '@ckeditor/ckeditor5-core/src/command';
+import uid from '@ckeditor/ckeditor5-utils/src/uid';
 
 export default class IsPencilInsertCommand extends Command {
 
@@ -23,7 +24,8 @@ export default class IsPencilInsertCommand extends Command {
         };
 
         this.editor.model.change( writer => {
-            this.editor.model.insertContent( createIsPencil( writer, configuration ) );
+            const isPencil = createIsPencil( writer, configuration );
+            this.editor.model.insertObject( isPencil );
         } );
     }
 
@@ -38,7 +40,10 @@ export default class IsPencilInsertCommand extends Command {
 
 function createIsPencil( writer, configuration ) {
     const isPencil = writer.createElement( 'isPencil', configuration.isPencil );
-    const isPencilCanvas = writer.createElement( 'isPencilCanvas', configuration.isPencilCanvas );
+    let canvasConfiguration = configuration.isPencilCanvas;
+    canvasConfiguration['uid'] = uid();
+    canvasConfiguration['content'] = JSON.stringify([]); // This is an empty segmentArray
+    const isPencilCanvas = writer.createElement( 'isPencilCanvas', canvasConfiguration );
     writer.append( isPencilCanvas, isPencil );
     return isPencil;
 }
