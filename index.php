@@ -61,6 +61,9 @@ class dispatcher {
         // Store persistent properties for the benefit of the next view
         $html .= $this->setPersistentValues();
         $html .= '</form>';
+        // Atach the IsPencil rendering script globally
+        $params = array('interpolation' => 'bezier');
+        $html .= self::ispclRenderingScript($params);
         $html .= '</body>';
         return $html;
     }
@@ -120,6 +123,7 @@ class dispatcher {
         $html .= '<div class="smallspacer"></div>';
         $html .= '<input type="submit" name="load" value="load" />';
         $html .= '<input type="submit" name="new" value="new document" />';
+        $html .= '<input type="submit" name="view" value="view" />'; 
         return $html;
     }
     private function createEditorScript():string {
@@ -168,6 +172,24 @@ class dispatcher {
         $html .= '<input type="submit" name="store" value="store" />';
         return $html;
     }
+
+    /**
+     * Returns the view 'viewingWiew'
+     * 
+     * @return string 
+     */
+    private function viewingView():string {
+        $html = '';
+        $html .= '<div>';
+        $html .= 'View of document:&nbsp;&nbsp;'.$this->currentDocument;
+        $html .= '<div style="margin: 20px; padding: 10px; border: 1px solid blue;">';
+        $html .= $this->currentHtml;
+        $html .= '</div>';
+        $html .= '<div class="smallspacer"></div>';
+        $html .= '<input type="submit" name="escape" value="escape" />';
+        return $html;
+    }
+
     /**
      * Returns HTML for the view $this->currentView
      * 
@@ -179,6 +201,8 @@ class dispatcher {
                 return $this->testdocumentView();
             case 'editorView':
                 return $this->editorView();
+            case 'viewingView';
+                return $this->viewingView();
             default:
                 return 'missing view';
         }
@@ -196,6 +220,10 @@ class dispatcher {
             $this->currentView = 'editorView';
         } elseif (isset($_POST['new'])) {
             $this->currentView = 'editorView';
+        } elseif ( isset($_POST['view']) && isset($_POST['testdocuments']) ) {
+            $this->currentHtml = file_get_contents(self::TESTDOCUMENTS.$_POST['testdocuments']);
+            $this->currentDocument = $_POST['testdocuments'];
+            $this->currentView = 'viewingView';
         }
     }
     /**
@@ -212,6 +240,12 @@ class dispatcher {
         }
     }
 
+    private function handleView() {
+        if (isset($_POST['escape'])) {
+            $this->currentView = 'testdocumentView';
+        }
+    }
+
     private function handle() {
         switch ($this->currentView) {
             case 'testdocumentView':
@@ -220,10 +254,23 @@ class dispatcher {
             case 'editorView';
                 $this->handleEditor();
                 break;
+            case 'viewingView';
+                $this->handleView();
+                break;
             default:
                 echo 'missing handler';
                 die;
         }
+    }
+
+    private static function ispclRenderingScript(array $params):string {
+        $html = '';
+        $jsonParams = json_encode($params);
+        $html .= '<script type="module">';
+        $html .= 'import {attachIsPencil} from "./ispencil/ispen/ispenengine.js";';
+        $html .= 'attachIsPencil(\''.$jsonParams.'\');';
+        $html .= '</script>';
+        return $html;
     }
 }
 $dispatcher = new dispatcher();

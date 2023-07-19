@@ -39,7 +39,9 @@ export default class IsPencilSizeCommand extends Command {
     refresh() {     
         const selection = this.editor.model.document.selection;
         const selectedElement = selection.getSelectedElement();
-
+        if ( selectedElement ) {
+            console.log( 'IspencilSizeCommand refresh ', selectedElement );
+        }
         this.isEnabled = !!selectedElement;
     }
 }

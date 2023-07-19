@@ -64,7 +64,7 @@ export default class IsPencilUI extends Plugin {
             // console.log( 'commandPanelView', commandPanelView );
             this.listenTo(commandPanelView, 'change:mode', () => isCanvas.changeMode(commandPanelView.mode ) );
             this.listenTo(commandPanelView, 'change:color', () => isCanvas.changeColor(commandPanelView.color ) );
-            this.listenTo(commandPanelView, 'change:stroke', () => isCanvas.changeColor(commandPanelView.stroke ) );
+            this.listenTo(commandPanelView, 'change:stroke', () => isCanvas.changeStroke(commandPanelView.stroke ) );
             return dropdown;
         } );
 

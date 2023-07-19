@@ -6,6 +6,7 @@ import { toWidget } from '@ckeditor/ckeditor5-widget/src/utils';
 import IsPencilInsertCommand from './ispencilinsertcommand';
 import IsPencilPosCommand from './ispencilposcommand';
 import IsPencilSizeCommand from './ispencilsizecommand';
+import { IsPenEngine } from './ispen/ispenengine.js';
 
 export default class IsPencilEditing extends Plugin {
 
@@ -24,6 +25,8 @@ export default class IsPencilEditing extends Plugin {
         this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
         this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
         this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
+        let options = { interpolation: 'bezier' };
+        this.isPenEngine = new IsPenEngine( options )
     }
 
     _defineSchema() {
@@ -81,12 +84,13 @@ export default class IsPencilEditing extends Plugin {
                 // console.log( 'upcasting isPencilCanvas', viewElement );
                 let viewContentElemen = viewElement.getAttribute( 'data-ispcl-content' );
                 console.log( 'upcating content element', viewContentElemen );
-                return writer.createElement( 'isPencilCanvas', {
+                const modelElement = writer.createElement( 'isPencilCanvas', {
                     width: viewElement.getAttribute( 'width' ),
                     height: viewElement.getAttribute( 'height' ),
                     content: viewElement.getAttribute( 'data-ispcl-content' ),
                     uid: viewElement.getAttribute( 'data-uid' )
                 } );
+                return modelElement;
             }
         } );
 
@@ -133,7 +137,10 @@ export default class IsPencilEditing extends Plugin {
                 attributes: [ 'width', 'height', 'content', 'uid' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                return viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
+                const editableCanvas = viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
+                console.log( 'editable canvas', editableCanvas );
+                editableCanvas.on( 'change', () => console.log( 'editableCanvas changed') );
+                return editableCanvas;
             }
         } );
     }

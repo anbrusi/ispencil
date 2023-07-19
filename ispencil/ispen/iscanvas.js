@@ -2,7 +2,7 @@
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { DomEmitterMixin, global } from '@ckeditor/ckeditor5-utils';
-import IsPencilUI from '../ispencilui';
+import { logError } from '@ckeditor/ckeditor5-utils/src/ckeditorerror';
 
 export default class IsCanvas extends Plugin {
 
@@ -27,10 +27,11 @@ export default class IsCanvas extends Plugin {
         this._observer.listenTo( domDocument, 'pointermove', this._pointermoveListener.bind( this ) );
         this._observer.listenTo( domDocument, 'pointerup', this._pointerupListener.bind( this ) );
 
-        // If this is not null, there is a current canvas. The value of this._canvas is set at each pointerdown by 
-        // the global pointerdown handler this._pointerdownListener when the source is aan ispencil canvas
+        // If this is not null, there is a current canvas we are working on.
+        // The value of this._canvas is set at each pointerdown and pointerup by 
+        // this._pointerdownListener and this._pointerupListener
         this._canvas = null;
-        // Th uid of the last opened canvas, if it has not been closed, else null
+        // Th uid of the current canvas, if it has not been closed, else null
         this._uid = null;
 
         // These are the handlers for the default mode 
@@ -54,8 +55,11 @@ export default class IsCanvas extends Plugin {
         this.stepType = 'L';
 
         /**
-         * this.segmentArray is set by this.openCanvas
+         * this.segmentArray is loaded by this._openCanvas  and stored by this._closeCanvas
+         * 
          * this.currSegment is set by this._newSegment
+         * 
+         * this.ctx is the 2d drawing context of the current canvas. It is set by this._openCanvas
          */
 
         
@@ -92,12 +96,16 @@ export default class IsCanvas extends Plugin {
 
     changeColor( newColor ) {
         this.color = newColor;
-        this.ctx.strokeStyle = this.color;
+        if (this._canvas) {
+            this.ctx.strokeStyle = this.color;
+        }
     }
 
     changeStroke( newStroke ) {
         this.stroke = newStroke;
-        this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
+        if (this._canvas) {
+            this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
+        }
     }
 
     /**
@@ -134,27 +142,35 @@ export default class IsCanvas extends Plugin {
                     if (newUid == this._uid) {
                         // We work on the same canvas on which we worked before.
                     } else {
-                        // We work on another canvas as we were working on before
+                        // We work on the first canvas or another canvas as we were working on before
                         // Change the current uid, close the old canvas and open the new one
-                        this._closeCanvas();
+                        if ( this._uid !== null ) {
+                            // Ther was a canvas we were working on different from the clicked canvas
+                            // ERROR should not happen, because the previous canvas should have been closed by a pointerup
+                            this._closeCanvas();
+                            console.log( 'Closing an old active canvas, before opening the clicked one' );
+                        }
                         this._uid = newUid;
                         this._openCanvas();
                     } 
                     // Be careful to call this only on a canvas, because it prevents defaults
                     this._pointerDownH(event, domEventData);
                 } else {
+                    // ERROR! hould never happen
                     // The canvas cannot be determined
                     console.log( 'Cannot determine the uid of the clicked canvas' );
                     // This should never happen, because we get here only if the pointer went down on an ispencil canvas
                     // Close any previous canvas
                     this._closeCanvas();
+                    this._canvas = null;
                     this._uid = null;
                 }
             } else {
                 // The pointer went down outside of any canvas
                 // Close a possibly open canvas
-                if (this._uid) {
+                if (this._canvas) {
                     this._closeCanvas();
+                    this._canvas = null;
                     this._uid = null;
                 }
             }
@@ -182,10 +198,16 @@ export default class IsCanvas extends Plugin {
                 // Pointer went up in another canvas as the one we were working on
                 // This can happen if we have adiacent canvases and we move from one to the other without releasing the pointer
                 this._closeCanvas();
+                this._canvas = null;
+                this._uid = null;
             }
         } else {
             // Pointer up outside of any canvas
-            this._closeCanvas();
+            if ( this._canvas ) {
+                this._closeCanvas();
+                this._canvas = null;
+                this._uid = null;
+            }
         }
         this._pointerUpH(event, domEventData);
     }
@@ -222,6 +244,8 @@ export default class IsCanvas extends Plugin {
             domEventData.preventDefault();
             let pos = this._canvasPos(domEventData);
             let d2 = norm2(vector(this.lastPos, pos));
+            // At the beginning of a segment short distances must be allowed, 
+            // otherwise no "nearly points such as the one on i" could be drawn
             if (d2 > this.minDist2 || this.segmentArray[this.currSegment].pts.length < 4) {
                 this._newPoint(pos);
                 this._drawLineSegment(this.lastPos, pos);
@@ -250,15 +274,16 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Is called when the pointer went down on a canvas, that we were not working on.
+     * Is called when the pointer went down on a canvas we were not working on.
      * Loads drawings stored in the data-part of the canvas
      */
     _openCanvas() {
-        const content = this._getDataValue( 'data-ispcl-content' );
+        let content = this._getDataValue( 'data-ispcl-content' );
         if ( content !== undefined) {
-            console.log('open canvas', this._uid);
+            // console.log('open canvas', this._uid);
+            content = content.replace( /!/g, '"')
             this.segmentArray = JSON.parse(content);
-            console.log('segmentArray', this._segmentArray);
+            // console.log('segmentArray', this._segmentArray);
             this.ctx = this._canvas.getContext('2d');
             // this is the initial value, which is dynamically changed by this.changeColor
             this.ctx.strokeStyle = this.color;
@@ -269,21 +294,46 @@ export default class IsCanvas extends Plugin {
     /**
      * Is called when we have been working on a specific canvas and the pointer went up outside any canvas 
      * or if the pointer went down om another canvas as the one we were working on.
-     * Stores drawing data in the data- part of the canvas
+     * Stores drawing data in the data- part of the canvas.
+     * Is called by pointerup before setting this._canvas and this._uid to null
      */
     _closeCanvas() {
-        if (this._uid) {
+        if ( !!this._canvas ) { 
             console.log('close canvas with uid', this._uid);
-            this._setDataValue( 'data-ispcl-content', JSON.stringify(this.segmentArray ));
-            this._uid = null;
+            // From DOM to View
+            const canvasViewElement = this.editor.editing.view.domConverter.mapDomToView( this._canvas );
+            // From View to model
+            const canvasModelElement = this.editor.editing.mapper.toModelElement( canvasViewElement ); 
+            let encoded = JSON.stringify(this.segmentArray);
+            encoded = encoded.replace( /"/g, '!' );
+            // Reflect DOM changes to model changes
+            this.editor.model.change( writer => {
+                writer.setAttribute( 'content', encoded, canvasModelElement );
+            } );
+        } else {
+            // ERROR is called only when this._canvas should be defined
+            logError( 'Close Canvas called on undefined canvas', this._canvas );
         }
     }
 
+    /**
+     * Returns a data-xxx value of the current canvas or undefined
+     * 
+     * @param {string} name the full name of the data-xxx attribute
+     * @returns 
+     */
     _getDataValue(name) {
         const dataValue = this._canvas?.attributes.getNamedItem( name);
         return dataValue?.nodeValue;
     }
 
+    /**
+     * Overwrites a data-xxx attribute of this._canvas and returns the old attribute
+     * 
+     * @param {string} name 
+     * @param {*} value 
+     * @returns 
+     */
     _setDataValue(name, value) {
         const dataValue = this._canvas?.attributes.getNamedItem( name);
         dataValue.nodeValue = value;
@@ -347,6 +397,38 @@ export default class IsCanvas extends Plugin {
         this.ctx.moveTo(p1.x, p1.y);
         this.ctx.lineTo(p2.x, p2.y);
         this.ctx.stroke();
+    }
+
+    renderIsPencil( canvas ) {
+        if ( !canvas ) {
+            logError( 'canvas is unavailable for rendering IsPencil' );
+        }
+        this._canvas = canvas;
+        const content = this._getDataValue( 'data-ispcl-content' );
+        if ( content !== undefined) {
+            // console.log('open canvas', this._uid);
+            this.segmentArray = JSON.parse(content);
+        }
+        for (let segment of this.segmentArray) {
+            this._renderSegment( segment );
+        }        
+    }
+
+    _renderSegment( segment ) {
+        console.log( 'render segment', segment );
+        this.ctx = this._canvas.getContext('2d');
+        this.ctx.strokeStyle = segment.color;
+        this.ctx.lineWidth = segment.width;
+        if ( segment.pts.length > 1 ) {
+            let p = segment.pts[ 0 ];
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+            for (let i = 1; i < segment.pts.length; i++) {
+                p = segment.pts[ i ];
+                this.ctx.moveTo(p.x, p.y);
+            }
+            this.ctx.stroke();
+        }
     }
 }
 
