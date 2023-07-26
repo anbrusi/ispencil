@@ -1,32 +1,47 @@
 //ispencil/ispencilediting.js
 
+/**
+ * Besides handling conversion, this plugin is responsible for rendering the canvases of isPencil widgets.
+ * The property pendingCanvases is a set of canvas DOM elements that must be rendered, after havin been downcasted for editing.
+ * 
+ * The rendering itself can take place only after completion of the downacast. An attempt to render a canvas in
+ * the conversion for editingDowncast just before returning the canvasView failed (the corresponding DOM element is not ready).
+ * The chosen solution is to make the canvas a raw element. Such elements call a render function in DomConverter#viewToDom,
+ * which gets the domElement as a parameter. Rendering in this function is still too early. It worked if the
+ * rendering was delayed (even 1 ms was sufficient) with setTimeout, but this would have been only a last resort.
+ * 
+ * The render function of the raw element canvasView is set to register the canvas passed as domElement parameter
+ * in the set pendingCanvases, thus marking a canvas as to be rendered, but not yet rendering it. The actual rendering
+ * is made in a callback of the 'render' event of the global view in this.editor.editing.view. This event happens
+ * after the rendering by CKEditor itself has taken place.
+ */
+
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
-import Widget from '@ckeditor/ckeditor5-widget/src/widget';
-import { toWidget } from '@ckeditor/ckeditor5-widget/src/utils';
-import IsPencilInsertCommand from './ispencilinsertcommand';
-import IsPencilPosCommand from './ispencilposcommand';
-import IsPencilSizeCommand from './ispencilsizecommand';
-import { IsPenEngine } from './ispen/ispenengine.js';
+import { Widget, toWidget } from '@ckeditor/ckeditor5-widget';
+import { refreshCanvas } from './ispen/ispenengine';
 
 export default class IsPencilEditing extends Plugin {
-
-    static get requires() {
-        return [ Widget ];
-    }
 
 	static get pluginName() {
 		return 'IsPencilEditing';
 	}
 
+    static get requires() {
+        return [ Widget ];
+    }
+
     init() {
         // console.log('IsPencilEditing#init');
         this._defineSchema();
         this._defineConverters();
-        this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
-        this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
-        this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
-        let options = { interpolation: 'bezier' };
-        this.isPenEngine = new IsPenEngine( options )
+        this.pendingCanvases = new Set();
+        this.editor.editing.view.on( 'render', () => { 
+            for ( let canvas of this.pendingCanvases ) {
+                refreshCanvas( canvas );
+                this.pendingCanvases.delete( canvas );
+            }
+            // console.log( 'pending canvases after refresh', this.pendingCanvases );
+        } );
     }
 
     _defineSchema() {
@@ -40,9 +55,7 @@ export default class IsPencilEditing extends Plugin {
             allowWhere: '$block',
 
             // Allow these attributes in isPencil model nodes
-            // 'position is one of 'left', 'center' 'right'. Default in ckeditor.js is 'center'
-            // 'hasBorder is either true or false. Default in ckeditor.js is false
-            allowAttributes: [ 'position', 'hasBorder' ]
+            allowAttributes: [ 'hasBorder' ]
         } );
 
         schema.register( 'isPencilCanvas', {
@@ -66,9 +79,11 @@ export default class IsPencilEditing extends Plugin {
             model: ( viewElement, { writer} ) => {
                 const attributes = {
                     hasBorder: viewElement.hasClass( 'ispcl-thinborder' ),
-                    position: modelPosition( viewElement ) // Decodes CSS of viewElement into one of 'left', 'center', 'right' or possibly null
+                    // position: modelPosition( viewElement ) // Decodes CSS of viewElement into one of 'left', 'center', 'right' or possibly null
                 }
-                return writer.createElement( 'isPencil', attributes );
+                const modelElement = writer.createElement( 'isPencil', attributes );
+                // console.log( 'Upcast div', modelElement );
+                return modelElement;
             }
         } );
 
@@ -77,19 +92,17 @@ export default class IsPencilEditing extends Plugin {
             // If not set, the converter will fire for every view element.
             view: {
                 name: 'canvas',
-                classes: 'ispcl-canvas', // This is a fake class, with no definition in CSS
-                attributes: [ 'width', 'height', 'data-ispcl-content', 'data-uid' ]
+                attributes: [ 'width', 'height', 'data-ispcl-uid', 'data-ispcl-content' ], // These view attributes are mandatory
             },
             model: ( viewElement, { writer} ) => {
-                // console.log( 'upcasting isPencilCanvas', viewElement );
-                let viewContentElemen = viewElement.getAttribute( 'data-ispcl-content' );
-                console.log( 'upcating content element', viewContentElemen );
-                const modelElement = writer.createElement( 'isPencilCanvas', {
+                const attributes = {
                     width: viewElement.getAttribute( 'width' ),
                     height: viewElement.getAttribute( 'height' ),
-                    content: viewElement.getAttribute( 'data-ispcl-content' ),
-                    uid: viewElement.getAttribute( 'data-uid' )
-                } );
+                    uid: viewElement.getAttribute( 'data-ispcl-uid' ),
+                    content: viewElement.getAttribute( 'data-ispcl-content' )
+                }
+                const modelElement = writer.createElement( 'isPencilCanvas', attributes );
+                // console.log( 'Upcast canvas', modelElement );
                 return modelElement;
             }
         } );
@@ -97,125 +110,91 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencil',
-                attributes: [ 'hasBorder', 'position' ]
+                attributes: [ 'hasBorder' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                return viewWriter.createContainerElement( 'div', {
-                     class: getIsPencilViewClasses( modelElement )
-                } );
+                // class is a string with all classes to be used in addition to automatic CKEditor classes
+                const isPencil = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
+                // console.log( 'downcast data isPencil', isPencil );
+                return isPencil;
             }
         } );
 
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height', 'content', 'uid' ]
+                attributes: [ 'width', 'height', 'uid', 'content' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                return viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
+                // class is a string with all classes to be used in addition to automatic CKEditor classes
+                const isPencilCanvas = viewWriter.createRawElement( 'canvas', makeIsPencilCanvasViewAttributes(  modelElement ) );
+                // console.log( 'downcast data isPencilCanvas', isPencilCanvas );
+                return isPencilCanvas;
             }
         } );
 
         conversion.for( 'editingDowncast' ).elementToElement( {
             model: {
                 name: 'isPencil',
-                attributes: [ 'hasBorder', 'position']
+                attributes: [ 'hasBorder' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
-                const isPencilDiv = viewWriter.createContainerElement( 'div', { class: getIsPencilViewClasses( modelElement ) } );
-                // return toWidget( isPencilDiv, viewWriter, { label: 'isPencil widget', hasSelectionHandle: true });
-                const widget = toWidget( isPencilDiv, viewWriter, { label: 'isPencil widget', hasSelectionHandle: true });
-                widget.on( 'change', () => console.log('change in widget'));
-                return widget;
+                const widgetView = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
+                return toWidget( widgetView, viewWriter, { hasSelectionHandle: true } );
             }
         } );
 
         conversion.for( 'editingDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height', 'content', 'uid' ]
+                attributes: [ 'width', 'height', 'uid', 'content' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                const editableCanvas = viewWriter.createEditableElement( 'canvas', getIsPencilCanvasViewConfig( modelElement ) );
-                console.log( 'editable canvas', editableCanvas );
-                editableCanvas.on( 'change', () => console.log( 'editableCanvas changed') );
-                return editableCanvas;
+                // class is a string with all classes to be used in addition to automatic CKEditor classes
+                const canvasView = viewWriter.createRawElement( 'canvas', makeIsPencilCanvasViewAttributes(  modelElement ) );
+                canvasView.render = ( domElement, domConverter) => {
+                    console.log('rendering dom element', domElement);
+                    this.pendingCanvases.add( domElement );
+                };
+                return canvasView;
             }
         } );
     }
 }
 
 /**
- * Returns one of the model position attributes [ 'left', 'center', 'right' ] from the corresponding CSS class in the view
+ * Returns a definition of view attributes from model attributes for the model Elemet isPencil
  * 
- * @param {@ckeditor/ckeditor5-engine/src/view/element} viewElement 
+ * @param {object} modelElement 
  * @returns 
  */
-function modelPosition( viewElement ) {
-    if ( viewElement.hasClass( 'ispcl-leftpos' ) ) {
-        return 'left';
-    }
-    if ( viewElement.hasClass( 'ispcl-centerpos' ) ) {
-        return 'center';
-    }
-    if ( viewElement.hasClass( 'ispcl-rightpos' ) ) {
-        return 'right';
-    }
-    return null;
-}
-
-/**
- * Returns the name of the CSS class implementing the model position attributes 'left', 'center', 'right'
- * @param {string} modelPositionAttribute 
- * @returns 
- */
-function getPositionClass( modelPositionAttribute ) {
-    switch ( modelPositionAttribute ) {
-        case 'left':
-            return 'ispcl-leftpos';
-        case 'center':
-            return 'ispcl-centerpos';
-        case 'right':
-            return 'ispcl-rightpos';
-        default:
-            return '';
-    }
-}
-
-/**
- * Returns a string with space separated CSS classes for the container isPencil div
- * 
- * @param {@ckeditor/ckeditor5-engine/src/model/element} modelElement 
- * @returns 
- */
-function getIsPencilViewClasses( modelElement ) {
-    // This class is present in any case. It fits the div to the canvas and is the pattere matching filter
-    let classes = 'ispcl-fitcontent'; 
-    // Add the positioning class. It is present in any case
-    classes += ' ' + getPositionClass( modelElement.getAttribute( 'position' ) );
+function makeIsPencilViewAttributes( modelElement ) {
     // Add a border to the container div, only if required. In absence of this class there is no border 
+    let classes = 'ispcl-fitcontent';
     const hasBorder = modelElement.getAttribute( 'hasBorder' );
     if ( hasBorder && hasBorder == true ) {                  
         classes += ' ispcl-thinborder';
+    };
+    let attributes = {
+        class: classes // attributes.class is a space separated list of CSS classes
     }
-    return classes;
+    return attributes;
 }
 
 /**
- * The configuration element for the ispencilCanvas
+ * Returns a definition of view attributes from model attributes for the model Elemet isPencilCanvas
  * 
- * @param {@ckeditor/ckeditor5-engine/src/model/element} modelElement 
+ * @param {object} modelElement 
  * @returns 
  */
-function getIsPencilCanvasViewConfig( modelElement ) {
-    let config = {
-        class: 'ispcl-canvas', // fake class needed for pattern identification. Could be used to color the canvas
+function makeIsPencilCanvasViewAttributes( modelElement ) {
+    let attributes = {        
         width: modelElement.getAttribute( 'width' ),
         height: modelElement.getAttribute( 'height' )
-    } 
-    // Due to the '-' these must be treated separately
-    config['data-ispcl-content'] = modelElement.getAttribute( 'content' );
-    config['data-uid'] = modelElement.getAttribute( 'uid' );
-    return config;
+    };
+    // Due to the needed minus in the attribute names, dot access does not work and square bracket notation is needed.
+    attributes[ 'data-ispcl-uid' ] = modelElement.getAttribute( 'uid' );
+    attributes[ 'data-ispcl-content' ] = modelElement.getAttribute( 'content' );
+    return attributes;
 }

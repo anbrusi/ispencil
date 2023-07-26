@@ -16,6 +16,13 @@ export function attachIsPencil( jsonparams ) {
     }
 }
 
+export function refreshCanvas( canvas ) {
+    const isPenEngine = new IsPenEngine( {interpolation: 'bezier'} );
+    isPenEngine.canvas = canvas;
+    isPenEngine.render();
+    canvas = isPenEngine.canvas;
+}
+
 export class IsPenEngine {
 
     interpolation = undefined;
@@ -60,7 +67,7 @@ export class IsPenEngine {
         }
         // Clear the canvas
         let ctx = this._canvas.getContext('2d');
-        ctx.clearRect( 0, 0, this._canvas.width, thi.canvas,height );
+        ctx.clearRect( 0, 0, this._canvas.width, this._canvas.height );
         // Remake it from scratch
         this.render();
     }

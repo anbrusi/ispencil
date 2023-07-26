@@ -11,8 +11,7 @@ import SplitButtonView from '@ckeditor/ckeditor5-ui/src/dropdown/button/splitbut
 import pencilIcon from '@ckeditor/ckeditor5-core/theme/icons/pencil.svg';
 import IsCmdPanel from './ispen/iscmdpanel';
 import { createDropdown } from '@ckeditor/ckeditor5-ui';
-import { Collection } from '@ckeditor/ckeditor5-utils';
-import IsCanvas from './ispen/iscanvas';
+// import IsCanvas from './ispen/iscanvas';
 
 export default class IsPencilUI extends Plugin {
 
@@ -25,10 +24,11 @@ export default class IsPencilUI extends Plugin {
         
         const editor = this.editor;
         const t = editor.t;
-        const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
-        const isCanvas = editor.plugins.get( IsCanvas );
+        // const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
+        // const isCanvas = editor.plugins.get( IsCanvas );
 
         // This is the button in the editor toolbar
+        /*
         editor.ui.componentFactory.add( 'isPencil', locale => {
             const command = editor.commands.get( 'isPencilInsertCommand' );
             const buttonView = new ButtonView( locale );
@@ -44,7 +44,7 @@ export default class IsPencilUI extends Plugin {
             this.listenTo( buttonView, 'execute', () => editor.execute( 'isPencilInsertCommand' ) );
             return buttonView;
         } );
-
+        */
 
         // Pencil insert button with dropdown in the editor toolbar
         editor.ui.componentFactory.add( 'isPencilCockpit', locale => {
@@ -56,7 +56,7 @@ export default class IsPencilUI extends Plugin {
                 icon: pencilIcon,
                 tooltip: true
             } );
-            dropdown.bind('isEnabled').to(command);
+            // dropdown.bind('isEnabled').to(command);
             dropdown.buttonView.actionView.on( 'execute', () => editor.execute( 'isPencilInsertCommand' ) );
             // console.log( 'dropdown', dropdown );
             const commandPanelView = new IsCmdPanel( locale, dropdown );
@@ -74,6 +74,7 @@ export default class IsPencilUI extends Plugin {
          * This is achieved, by binding the icon view's isOn to the properties *.PosActive of IsPencilToolbar
          */
 
+        /*
         editor.ui.componentFactory.add( 'isPencilLeft', locale => {
             const buttonView = new ButtonView( locale );
 
@@ -115,7 +116,7 @@ export default class IsPencilUI extends Plugin {
             this.listenTo( buttonView, 'execute', () => editor.execute( 'isPencilPosCommand', 'right' ) );
             return buttonView;
         } );
-
+        */
     }
 
 }

@@ -8,7 +8,7 @@
             "name": "Launch Chrome",
             "request": "launch",
             "type": "chrome",
-            "url": "https://myeclipse/ispencil5_1/index.php",
+            "url": "https://myeclipse/ispencil5_2/index.php",
             "webRoot": "${workspaceFolder}"
         },
         {

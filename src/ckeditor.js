@@ -24,6 +24,8 @@ import MediaEmbed from '@ckeditor/ckeditor5-media-embed/src/mediaembed';
 
 // IsPencil additions
 import IsPencil from '../ispencil/ispencil';
+import IsPencilUI from '../ispencil/ispencilui';
+import IsCanvas from '../ispencil/ispen/iscanvas';
 
 export default class ClassicEditor extends ClassicEditorBase {}
 
@@ -43,7 +45,9 @@ ClassicEditor.builtinPlugins = [
 	Base64UploadAdapter,
 	ImageResize,
 	MediaEmbed,
-	IsPencil
+	IsPencil,
+	IsPencilUI,
+	IsCanvas
 ];
 
 // Editor configuration.
@@ -58,9 +62,7 @@ ClassicEditor.defaultConfig = {
 			'numberedList',
 			'|',
 			'uploadImage',
-			'mediaEmbed',
-			'isPencil',
-			'isPencilCockpit'
+			'mediaEmbed'
 		]
 	},
 	image: {
@@ -80,8 +82,7 @@ ClassicEditor.defaultConfig = {
 		width: 400,
 		height: 400,
 		position: 'center',
-		hasBorder: false,
-		toolbar: [ 'isPencilLeft', 'isPencilCenter', 'isPencilRight' ]
+		hasBorder: false
 	},
 	// This value must be kept in sync with the language defined in webpack.config.js.
 	language: 'en'

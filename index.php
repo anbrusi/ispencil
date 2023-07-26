@@ -39,7 +39,7 @@ class dispatcher {
         $html .= '<head>';
         $html .= '<meta charset="UTF-8">';
         $html .= '<meta name="viewport" content="width=device-width, initial-scale=1.0">';
-        $html .= '<title>ispencil5_1</title>';
+        $html .= '<title>ispencil5_2</title>';
         $html .= '<link rel="stylesheet" href="index.css" />';
         // Import the classic editor script for all pages. Instantiation is made in pages, that need it
         $html .= '<script src="./build/ckeditor.js"></script>';
@@ -50,8 +50,8 @@ class dispatcher {
     private function body():string {
         $html = '';
         $html .= '<body>';
-        $html .= '<h1>isPencil5_1</h1>';
-        $html .= '<form action="index.php" method="POST" name="ispencil5_1">';
+        $html .= '<h1>isPencil5_2</h1>';
+        $html .= '<form action="index.php" method="POST" name="ispencil5_2">';
         // Get properties transmitted ffrom previous view
         $this->getPersistentValues();
         // Handle POST's of previous view
@@ -61,9 +61,6 @@ class dispatcher {
         // Store persistent properties for the benefit of the next view
         $html .= $this->setPersistentValues();
         $html .= '</form>';
-        // Atach the IsPencil rendering script globally
-        $params = array('interpolation' => 'bezier');
-        $html .= self::ispclRenderingScript($params);
         $html .= '</body>';
         return $html;
     }
@@ -263,15 +260,6 @@ class dispatcher {
         }
     }
 
-    private static function ispclRenderingScript(array $params):string {
-        $html = '';
-        $jsonParams = json_encode($params);
-        $html .= '<script type="module">';
-        $html .= 'import {attachIsPencil} from "./ispencil/ispen/ispenengine.js";';
-        $html .= 'attachIsPencil(\''.$jsonParams.'\');';
-        $html .= '</script>';
-        return $html;
-    }
 }
 $dispatcher = new dispatcher();
 $dispatcher->dispatch();
