@@ -10,6 +10,10 @@ body {
 .ispcl-thinborder {
     border: 1px solid black;
 }
+.ispcl-active {
+    border: 3px solid lime;
+    margin-bottom: -3px;
+}
 .ispcl-leftpos {
     float: left;
     margin-right: 10px;

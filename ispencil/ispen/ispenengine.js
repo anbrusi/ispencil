@@ -2,14 +2,13 @@
 
 export function attachIsPencil( jsonparams ) {
     const options = JSON.parse( jsonparams );
-    console.log( 'IsPenEngine options', options);
+    // console.log( 'IsPenEngine options', options);
     const isPenEngine = new IsPenEngine( options );
-    console.log('instantiated IsPenEngine', isPenEngine );
+    // console.log('instantiated IsPenEngine', isPenEngine );
     const candidates = document.getElementsByClassName( 'ispcl-canvas' );
     if ( candidates ) {
         for ( let candidate of candidates ) {
-            console.log( 'rendering candidate', candidate);
-            console.log('type of candidate', typeof candidate);
+            // console.log( 'rendering candidate', candidate);
             isPenEngine.canvas = candidate;
             isPenEngine.render();
         }
@@ -43,7 +42,7 @@ export class IsPenEngine {
     }
 
     constructor( options ) {
-        console.log('IsPenEngine constructor with optione', options);
+        // console.log('IsPenEngine constructor with optione', options);
         if ( options?.interpolation ) {
             this.interpolation = options.interpolation;
         } else {
@@ -80,14 +79,14 @@ export class IsPenEngine {
         let content = this._canvas?.getAttribute( 'data-ispcl-content' );
         if ( content ) {
             content = content.replace( /!/g, '"' );
-            console.log('decoded json ', content);
+            // console.log('decoded json ', content);
             let segmentArray = undefined;
             try {
                 segmentArray = JSON.parse( content ); // Throws an exception
             } catch (ex) {
                 console.log('Exception', ex);
             }
-            console.log('segmentArray', segmentArray);
+            // console.log('segmentArray', segmentArray);
             for ( let segment of segmentArray ) {
                 switch (this.interpolation) {
                     case 'line':
@@ -119,7 +118,7 @@ export class IsPenEngine {
      * @param {object} segment This is an object describing a closed path
      */
     lineSegment( segment ) {
-        console.log( 'line segment' );
+        // console.log( 'line segment' );
         let ctx = this._canvas.getContext('2d');
         ctx.strokeStyle = segment.color;
         ctx.lineWidth = segment.width;
@@ -142,7 +141,7 @@ export class IsPenEngine {
      * @param {object} segment 
      */
     bezierSegment( segment ) {
-        console.log( 'bezier segment' );
+        // console.log( 'bezier segment' );
         let ctx = this._canvas.getContext('2d');
         ctx.strokeStyle = segment.color;
         ctx.lineWidth = segment.width;

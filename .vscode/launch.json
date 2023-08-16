@@ -5,11 +5,19 @@
     "version": "0.2.0",
     "configurations": [      
         {
+            "name": "Launch Edge",
+            "request": "launch",
+            "type": "msedge",
+            "url": "https://myeclipse/ispencil5_2/index.php",
+            "webRoot": "${workspaceFolder}"
+        },
+        {
             "name": "Launch Chrome",
             "request": "launch",
             "type": "chrome",
             "url": "https://myeclipse/ispencil5_2/index.php",
-            "webRoot": "${workspaceFolder}"
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": true
         },
         {
             "name": "Listen for Xdebug",

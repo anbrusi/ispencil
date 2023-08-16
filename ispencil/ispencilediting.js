@@ -38,6 +38,7 @@ export default class IsPencilEditing extends Plugin {
         this.editor.editing.view.on( 'render', () => { 
             for ( let canvas of this.pendingCanvases ) {
                 refreshCanvas( canvas );
+                // console.log( 'refreshed canvas', canvas );
                 this.pendingCanvases.delete( canvas );
             }
             // console.log( 'pending canvases after refresh', this.pendingCanvases );
@@ -142,6 +143,7 @@ export default class IsPencilEditing extends Plugin {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
                 const widgetView = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
                 return toWidget( widgetView, viewWriter, { hasSelectionHandle: true } );
+                // return widgetView;
             }
         } );
 
@@ -154,7 +156,7 @@ export default class IsPencilEditing extends Plugin {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
                 const canvasView = viewWriter.createRawElement( 'canvas', makeIsPencilCanvasViewAttributes(  modelElement ) );
                 canvasView.render = ( domElement, domConverter) => {
-                    console.log('rendering dom element', domElement);
+                    // console.log('rendering dom element', domElement);
                     this.pendingCanvases.add( domElement );
                 };
                 return canvasView;
