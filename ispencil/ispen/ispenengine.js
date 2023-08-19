@@ -2,9 +2,9 @@
 
 export function attachIsPencil( jsonparams ) {
     const options = JSON.parse( jsonparams );
-    // console.log( 'IsPenEngine options', options);
+    console.log( 'IsPenEngine options', options);
     const isPenEngine = new IsPenEngine( options );
-    // console.log('instantiated IsPenEngine', isPenEngine );
+    console.log('instantiated IsPenEngine', isPenEngine );
     const candidates = document.getElementsByClassName( 'ispcl-canvas' );
     if ( candidates ) {
         for ( let candidate of candidates ) {

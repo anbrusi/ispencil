@@ -30,44 +30,10 @@ export default class IsCanvas extends Plugin {
         
         this.isPencilEditing = this.editor.plugins.get( IsPencilEditing );
 
-        /*
-        this.set( 'activeUid', null);
-        this.on( 'change:activeUid', (evt, propertyName, newValue, oldValue) => {
-            console.log(
-            `${ propertyName } has changed from ${ oldValue } to ${ newValue }`
-             );
-            console.log( 'activeUid changed to', this.activeUid );
-            if ( this._canvas ) {
-                const model = this.editor.model;  
-                const canvasModelElement = this.domToModel( this._canvas );
-                console.log( 'canvas model element', canvasModelElement );
-                const viewElement = this.editor.editing.view.domConverter.mapDomToView( this._canvas );
-                this.editor.editing.view.change( writer => {
-                    if (this.activeUid == this._uid) {
-                        writer.addClass( 'ispcl-active', viewElement );
-                    } else {
-                        writer.removeClass( 'ispcl-active', viewElement );
-                    }
-                    // The canvas must be redrawn, because otherwise it is blank after the lime boerer class is added
-                    this.isPencilEditing.pendingCanvases.add( this._canvas );
-                });
-            }
-        } );
-        */
-
         /**
-         * The current canvas if there is one, null else
-         * 
-         * {DOM element}
+         * this._currentCanvas is the last canvas hit by a pointerdown, after pointerDownListener has set it.
          */
-        this._canvas = null;
-
-        // The uid of the current canvas or null if there is no current canvas (this is the initial default)
-        // Each click on a canvas sets this._uid to the uid of the canvas and makes it current.
-        // Each click outside of any canvas sets this._uid to null
-        this._uid = null;
-
-        this._activeUid = null;
+        this._currentCanvas = null;
 
         // These are the handlers for the default mode 
         this._pointerDownH = this._freePenPointerDownH;
@@ -75,8 +41,8 @@ export default class IsCanvas extends Plugin {
         this._pointerUpH = this._freePenPointerUpH;
 
         /**
-         * this._canvas is set by this._pointerDownH and is the last canvas on which the pointer went down or null
-         * this._uid is the uid of this._canvas
+         * this._currentCanvas is set by this._pointerDownH and is the last canvas on which the pointer went down or null
+         * this._uid is the uid of this._currentCanvas
          */
          
         // The following are initial values, current values are set 
@@ -149,14 +115,14 @@ export default class IsCanvas extends Plugin {
 
     changeColor( newColor ) {
         this.color = newColor;
-        if (this._canvas) {
+        if (this._currentCanvas) {
             this.ctx.strokeStyle = this.color;
         }
     }
 
     changeStroke( newStroke ) {
         this.stroke = newStroke;
-        if (this._canvas) {
+        if (this._currentCanvas) {
             this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
         }
     }
@@ -170,17 +136,15 @@ export default class IsCanvas extends Plugin {
      */
     _pointerdownListener(event, domEventData) {
         const srcElement = domEventData.srcElement;
-        const previousCanvas = this._canvas;
         if (srcElement.hasAttribute( 'data-ispcl-content' )) {
             // Pointer went down on canvas
             // console.log('pointerDown on canvas', srcElement);
-            this._canvas = srcElement;
-            const previousUid = this._uid; // Save the old uid to detect changes
-            this._uid = this._getDataValue( srcElement, 'data-ispcl-uid') ;
-            // Check which canvas it is
-            if ( this._uid && this._uid == previousUid ) {
+
+            let canvas = srcElement;
+            // Check if it is the current canvas
+            if ( this._getCanvasUid( canvas ) == this._getCanvasUid( this._currentCanvas ) ) {
                 // Pointerdown on the current canvas
-                if ( this._uid == this._activeUid ) {
+                if ( this._isActiveCanvas( canvas ) ) {
                     // Ponterdown on current already active canvas. Start a segment
                     if ( this._allowedPointer(domEventData) ) {
                         console.log('start painting on canvas', this._activeUid);
@@ -191,22 +155,21 @@ export default class IsCanvas extends Plugin {
                 } else {
                     // Pointerdown on current canvas, which is not active. Make it active and start painting
                     if ( this._allowedPointer(domEventData) ) {
-                        this._setActiveUid( this._canvas, this._uid );
+                        this._openCanvas( canvas );
                         this._pointerDownH(event, domEventData);
                     } else {
                         // An active canvas was touched with a finger. Do nothing
                     }
                 }
             } else {
-                // Pointer down on non current canvas
-                this._setActiveUid( previousCanvas, null );
+                // Pointer down on non current canvas. Close a possibly active current canvas and make the new one current
+                this._closeCanvas( this._currentCanvas );
+                this._currentCanvas = canvas;
             }
         } else {
-            // Pointerdown outside of canvas
-            this._canvas = null;
-            this._uid = null;
-            this._setActiveUid( previousCanvas, null );
-            // Final operations will take place in pointerUp, which needs this._canvas and this._uid, So do not set it here
+            // Pointerdown outside of canvas. There is no current canvas any more
+            this._closeCanvas( this._currentCanvas );
+            this._currentCanvas = null;
         }
     }
 
@@ -214,7 +177,7 @@ export default class IsCanvas extends Plugin {
         const srcElement = domEventData.srcElement;
         if (srcElement.hasAttribute( 'data-ispcl-content' )) {
             // console.log('pointerMove on canvas', srcElement); 
-            if (this._allowedPointer(domEventData) && !!this._canvas) {
+            if (this._allowedPointer(domEventData) && !!this._currentCanvas) {
                 this._pointerMoveH(event, domEventData);
             }
         }  
@@ -230,6 +193,7 @@ export default class IsCanvas extends Plugin {
         }
         this._pointerUpH(event, domEventData);
     }
+
     /**
      * The pencil specific part of _pointerdownListener used in drawing mode
      * 
@@ -240,9 +204,9 @@ export default class IsCanvas extends Plugin {
             domEventData.preventDefault();
             this.pointerDown = true;
             if (domEventData.pointerType == 'mouse') {
-                this._canvas.style.cursor = 'crosshair';
+                this._currentCanvas.style.cursor = 'crosshair';
             } else {
-                this._canvas.style.cursor = 'none';
+                this._currentCanvas.style.cursor = 'none';
             }
             this.lastPos = this._canvasPos(domEventData);
             this._newSegment(this.lastPos); // Initializes temporary points in any case
@@ -285,9 +249,9 @@ export default class IsCanvas extends Plugin {
             domEventData.preventDefault();
             this.pointerDown = false;
             if (domEventData.pointerType == 'mouse') {
-                this._canvas.style.cursor = 'default';
+                this._currentCanvas.style.cursor = 'default';
             } else {
-                this._canvas.style.cursor = 'none';
+                this._currentCanvas.style.cursor = 'none';
             }
             this.lastPos = this._canvasPos(domEventData);
             this._newSegment(this.lastPos); // Initializes temporary points in any case
@@ -300,6 +264,26 @@ export default class IsCanvas extends Plugin {
 
     _erasePointerUpH(event, domEventData) {
 
+    }
+
+    /**
+     * Checks if canvas is active
+     * 
+     * @param {HTML DOM element} canvas 
+     * @returns true if canvas has a lime border marking it as activem false else.
+     */
+    _isActiveCanvas( canvas ) {
+        return canvas.classList.contains( 'ispcl-active' );
+    }
+
+    /**
+     * Returns the uid of canvas or undefined
+     * 
+     * @param {HTML DOM element} canvas 
+     * @returns string or undefined
+     */
+    _getCanvasUid( canvas ) {
+        return  this._getDataValue( canvas, 'data-ispcl-uid' );
     }
 
     /**
@@ -330,55 +314,25 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Sets the active canvas
-     * If uid == null, canvas is the canvas, which looses activity, if it is not null,
-     * else canvas is the canvas becoming active.
-     * As a side effect uid == null removes the border from the canvas becoming inactive
-     * and sets the border to the newly active canvas else
-     * 
-     * @param {*} canvas 
-     * @param {*} uid 
-     */
-    _setActiveUid(canvas,  uid ) {
-        // If a nonactive canvas is clicked and then no canvas. both call _setActiveUid with 'uid' = null
-        // The first time canvas is the real previous canvas, whose drawing must be saved with close canvas,
-        // but the second time previous canvas has rotated and canvas is the nonactive canvas.
-        // If the function could be executed twice it would fill the nonactive canvas with the content of the original previous canvas
-        // The test uid != this._activeUid avoids this situation, becuse the second time both are null and not different.
-        if ( uid != this._activeUid ) {
-            if ( canvas ) {
-                const canvasUid = this._getDataValue( canvas, 'data-ispcl-uid' );
-                if ( uid == null ) {
-                    console.log( 'iscanvas._setActiveUid deactivate canvas with uid', canvasUid );
-                    this._setCanvasActiveBorder( canvas, false );
-                    this._closeCanvas( canvas );
-                } else {
-                    console.log( 'iscanvas._setActiveUid activate canvas with uid', canvasUid );
-                    this._setCanvasActiveBorder( canvas, true );
-                    this._openCanvas( canvas );
-                }
-            }
-            this._activeUid = uid;
-        }
-    }
-
-    /**
      * Is called when the pointer went down on a canvas we were not working on.
      * Loads drawings stored in the data-part of the canvas
      * 
      * @param {HTML DOM element} canvas 
      */
     _openCanvas( canvas ) {
-        let content = this._getDataValue(canvas, 'data-ispcl-content' );
-        if ( content !== undefined) {
-            // console.log('open canvas', this._uid);
-            content = content.replace( /!/g, '"')
-            this.segmentArray = JSON.parse(content);
-            // console.log('segmentArray', this._segmentArray);
-            this.ctx = this._canvas.getContext('2d');
-            // this is the initial value, which is dynamically changed by this.changeColor
-            this.ctx.strokeStyle = this.color;
-            this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
+        if ( canvas ) {
+            this._setCanvasActiveBorder( canvas, true );
+            let content = this._getDataValue(canvas, 'data-ispcl-content' );
+            if ( content !== undefined) {
+                // console.log('open canvas', this._uid);
+                content = content.replace( /!/g, '"')
+                this.segmentArray = JSON.parse(content);
+                // console.log('segmentArray', this._segmentArray);
+                this.ctx = canvas.getContext('2d');
+                // this is the initial value, which is dynamically changed by this.changeColor
+                this.ctx.strokeStyle = this.color;
+                this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
+            }
         }
     }
 
@@ -386,12 +340,15 @@ export default class IsCanvas extends Plugin {
      * Is called when we have been working on a specific canvas and the pointer went up outside any canvas 
      * or if the pointer went down om another canvas as the one we were working on.
      * Stores drawing data in the data- part of the canvas.
-     * Is called by pointerup before setting this._canvas and this._uid to null
+     * Is called by pointerup before setting this._currentCanvas and this._uid to null
      * 
      * @param {HTML DOM element} canvas 
      */
     _closeCanvas( canvas ) {
-        if ( canvas ) { 
+        if ( canvas && this._isActiveCanvas( canvas )) { 
+            // _setCanvasActiveBorder must be called, before modifying canvas, since afterwards mapDomToView does not work any more
+            // Probably there is some map, which would not get the correct key.
+            this._setCanvasActiveBorder( canvas, false );
             const canvasUid = this._getDataValue( canvas, 'data-ispcl-uid' );
             console.log('iscanvas._closeCanvas close canvas with uid', canvasUid );
             // From DOM to View
@@ -404,9 +361,6 @@ export default class IsCanvas extends Plugin {
             this.editor.model.change( writer => {
                 writer.setAttribute( 'content', encoded, canvasModelElement );
             } );
-        } else {
-            // ERROR is called only when this._canvas should be defined
-            logError( 'Close Canvas called on undefined canvas', canvas );
         }
     }
 
@@ -422,16 +376,16 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Overwrites a data-xxx attribute of this._canvas and returns the old attribute
+     * Overwrites a data-xxx attribute of this._currentCanvas and returns the old attribute
      * 
      * @param {string} name 
      * @param {*} value 
      * @returns 
      */
     _setDataValue(name, value) {
-        const dataValue = this._canvas?.attributes.getNamedItem( name);
+        const dataValue = this._currentCanvas?.attributes.getNamedItem( name);
         dataValue.nodeValue = value;
-        return this._canvas?.attributes.setNamedItem(dataValue);
+        return this._currentCanvas?.attributes.setNamedItem(dataValue);
     }
 
     /**
@@ -450,7 +404,7 @@ export default class IsCanvas extends Plugin {
      * @param {object} event 
      */
     _canvasPos(event) {
-        let rect = this._canvas.getBoundingClientRect();
+        let rect = this._currentCanvas.getBoundingClientRect();
         return {
             x: event.pageX - rect.left - window.scrollX,
             y: event.pageY - rect.top - window.scrollY
@@ -497,7 +451,7 @@ export default class IsCanvas extends Plugin {
         if ( !canvas ) {
             logError( 'canvas is unavailable for rendering IsPencil' );
         }
-        this._canvas = canvas;
+        this._currentCanvas = canvas;
         const content = this._getDataValue( canvas, 'data-ispcl-content' );
         if ( content !== undefined) {
             // console.log('open canvas', this._uid);
@@ -510,7 +464,7 @@ export default class IsCanvas extends Plugin {
 
     _renderSegment( segment ) {
         console.log( 'render segment', segment );
-        this.ctx = this._canvas.getContext('2d');
+        this.ctx = this._currentCanvas.getContext('2d');
         this.ctx.strokeStyle = segment.color;
         this.ctx.lineWidth = segment.width;
         if ( segment.pts.length > 1 ) {

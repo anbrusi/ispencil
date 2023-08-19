@@ -61,6 +61,9 @@ class dispatcher {
         // Store persistent properties for the benefit of the next view
         $html .= $this->setPersistentValues();
         $html .= '</form>';
+        // Atach the IsPencil rendering script globally
+        $params = array('interpolation' => 'bezier');
+        $html .= self::ispclRenderingScript($params);
         $html .= '</body>';
         return $html;
     }
@@ -260,6 +263,15 @@ class dispatcher {
         }
     }
 
+    private static function ispclRenderingScript(array $params):string {
+        $html = '';
+        $jsonParams = json_encode($params);
+        $html .= '<script type="module">';
+        $html .= 'import {attachIsPencil} from "./ispencil/ispen/ispenengine.js";';
+        $html .= 'attachIsPencil(\''.$jsonParams.'\');';
+        $html .= '</script>';
+        return $html;
+    }
 }
 $dispatcher = new dispatcher();
 $dispatcher->dispatch();
