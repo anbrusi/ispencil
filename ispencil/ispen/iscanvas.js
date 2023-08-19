@@ -113,6 +113,11 @@ export default class IsCanvas extends Plugin {
         }
     }
 
+    /**
+     * Called in IsPencilUi when the color changes
+     * 
+     * @param {string} newColor 
+     */
     changeColor( newColor ) {
         this.color = newColor;
         if (this._currentCanvas) {
@@ -120,6 +125,12 @@ export default class IsCanvas extends Plugin {
         }
     }
 
+    /**
+     * Called in IsPencilUi when the stroke width changes. 
+     * newStroke is one of the witdth names enumerated in _lineWidthFromStroke
+     * 
+     * @param {string} newStroke 
+     */
     changeStroke( newStroke ) {
         this.stroke = newStroke;
         if (this._currentCanvas) {
@@ -314,13 +325,15 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Is called when the pointer went down on a canvas we were not working on.
-     * Loads drawings stored in the data-part of the canvas
+     * Is called when the pointer went down on the current canvas before it became active
+     * Loads drawings stored in the data-part of the canvas and the current drawing ctx parameters
+     * Makes canvas active (signalled by a lime border on canvas) and ready for drawing
      * 
      * @param {HTML DOM element} canvas 
      */
     _openCanvas( canvas ) {
         if ( canvas ) {
+            // Must be called, before modifying ctx, or the modifications do not take place.
             this._setCanvasActiveBorder( canvas, true );
             let content = this._getDataValue(canvas, 'data-ispcl-content' );
             if ( content !== undefined) {
@@ -337,10 +350,9 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Is called when we have been working on a specific canvas and the pointer went up outside any canvas 
-     * or if the pointer went down om another canvas as the one we were working on.
-     * Stores drawing data in the data- part of the canvas.
-     * Is called by pointerup before setting this._currentCanvas and this._uid to null
+     * Is called when we have been working on a specific canvas and terminate drawing.
+     * Stores drawing data in the data- part of the canvas and makes it inactive (signalled by the absence of the lime border).
+     * Can be called in any case. If it is not called on an active canvas, it has no effect.
      * 
      * @param {HTML DOM element} canvas 
      */
@@ -365,9 +377,10 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Returns a data-xxx value of the current canvas or undefined
+     * Returns undefined or the value of the attribute name of src
      * 
-     * @param {string} name the full name of the data-xxx attribute
+     * @param {HTML DOM element} src 
+     * @param {string} name 
      * @returns 
      */
     _getDataValue(src, name) {
@@ -382,11 +395,13 @@ export default class IsCanvas extends Plugin {
      * @param {*} value 
      * @returns 
      */
+    /*
     _setDataValue(name, value) {
         const dataValue = this._currentCanvas?.attributes.getNamedItem( name);
         dataValue.nodeValue = value;
         return this._currentCanvas?.attributes.setNamedItem(dataValue);
     }
+    */
 
     /**
      * Checks that an event was generated either by a mouse or a pointer. This is to exclude touch events

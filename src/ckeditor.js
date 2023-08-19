@@ -62,7 +62,8 @@ ClassicEditor.defaultConfig = {
 			'numberedList',
 			'|',
 			'uploadImage',
-			'mediaEmbed'
+			'mediaEmbed',
+			'isPencilCockpit'
 		]
 	},
 	image: {
@@ -78,6 +79,7 @@ ClassicEditor.defaultConfig = {
 	mediaEmbed: {
 		previewsInData: true
 	},
+	// This is the default. It is overridden in PHP by the configuration in ClassicEditor.create
 	isPencil: {
 		width: 400,
 		height: 400,

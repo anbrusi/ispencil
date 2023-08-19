@@ -11,7 +11,7 @@ import SplitButtonView from '@ckeditor/ckeditor5-ui/src/dropdown/button/splitbut
 import pencilIcon from '@ckeditor/ckeditor5-core/theme/icons/pencil.svg';
 import IsCmdPanel from './ispen/iscmdpanel';
 import { createDropdown } from '@ckeditor/ckeditor5-ui';
-// import IsCanvas from './ispen/iscanvas';
+import IsCanvas from './ispen/iscanvas';
 
 export default class IsPencilUI extends Plugin {
 
@@ -24,8 +24,8 @@ export default class IsPencilUI extends Plugin {
         
         const editor = this.editor;
         const t = editor.t;
+        const isCanvas = editor.plugins.get( IsCanvas );
         // const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
-        // const isCanvas = editor.plugins.get( IsCanvas );
 
         // This is the button in the editor toolbar
         /*

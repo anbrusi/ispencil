@@ -19,6 +19,7 @@
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { Widget, toWidget } from '@ckeditor/ckeditor5-widget';
 import { refreshCanvas } from './ispen/ispenengine';
+import IsPencilInsertCommand from './ispencilinsertcommand';
 
 export default class IsPencilEditing extends Plugin {
 
@@ -43,6 +44,9 @@ export default class IsPencilEditing extends Plugin {
             }
             // console.log( 'pending canvases after refresh', this.pendingCanvases );
         } );
+        this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
+        // this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
+        // this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
     }
 
     _defineSchema() {
@@ -93,6 +97,7 @@ export default class IsPencilEditing extends Plugin {
             // If not set, the converter will fire for every view element.
             view: {
                 name: 'canvas',
+                classes: 'ispcl-canvas', // This is a fake class, with no definition in CSS
                 attributes: [ 'width', 'height', 'data-ispcl-uid', 'data-ispcl-content' ], // These view attributes are mandatory
             },
             model: ( viewElement, { writer} ) => {
@@ -191,7 +196,9 @@ function makeIsPencilViewAttributes( modelElement ) {
  * @returns 
  */
 function makeIsPencilCanvasViewAttributes( modelElement ) {
-    let attributes = {        
+    let attributes = { 
+        // This class will be in the view but not in the model.     
+        class: 'ispcl-canvas', // fake class needed for pattern identification. Could be used to color the canvas  
         width: modelElement.getAttribute( 'width' ),
         height: modelElement.getAttribute( 'height' )
     };
