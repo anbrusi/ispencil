@@ -20,6 +20,7 @@ import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { Widget, toWidget } from '@ckeditor/ckeditor5-widget';
 import { refreshCanvas } from './ispen/ispenengine';
 import IsPencilInsertCommand from './ispencilinsertcommand';
+import IsPencilPosCommand from './ispencilposcommand';
 
 export default class IsPencilEditing extends Plugin {
 
@@ -45,7 +46,7 @@ export default class IsPencilEditing extends Plugin {
             // console.log( 'pending canvases after refresh', this.pendingCanvases );
         } );
         this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
-        // this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
+        this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
         // this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
     }
 
@@ -60,7 +61,7 @@ export default class IsPencilEditing extends Plugin {
             allowWhere: '$block',
 
             // Allow these attributes in isPencil model nodes
-            allowAttributes: [ 'hasBorder' ]
+            allowAttributes: [ 'hasBorder', 'position' ]
         } );
 
         schema.register( 'isPencilCanvas', {
@@ -84,7 +85,7 @@ export default class IsPencilEditing extends Plugin {
             model: ( viewElement, { writer} ) => {
                 const attributes = {
                     hasBorder: viewElement.hasClass( 'ispcl-thinborder' ),
-                    // position: modelPosition( viewElement ) // Decodes CSS of viewElement into one of 'left', 'center', 'right' or possibly null
+                    position: modelPosition( viewElement ) // Decodes CSS of viewElement into one of 'left', 'center', 'right' or possibly null
                 }
                 const modelElement = writer.createElement( 'isPencil', attributes );
                 // console.log( 'Upcast div', modelElement );
@@ -116,7 +117,7 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencil',
-                attributes: [ 'hasBorder' ]
+                attributes: [ 'hasBorder', 'position' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
@@ -142,7 +143,7 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'editingDowncast' ).elementToElement( {
             model: {
                 name: 'isPencil',
-                attributes: [ 'hasBorder' ]
+                attributes: [ 'hasBorder', 'position' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
@@ -171,6 +172,44 @@ export default class IsPencilEditing extends Plugin {
 }
 
 /**
+ * Returns one of the model position attributes [ 'left', 'center', 'right' ] from the corresponding CSS class in the view
+ * 
+ * @param {@ckeditor/ckeditor5-engine/src/view/element} viewElement 
+ * @returns 
+ */
+function modelPosition( viewElement ) {
+    if ( viewElement.hasClass( 'ispcl-leftpos' ) ) {
+        return 'left';
+    }
+    if ( viewElement.hasClass( 'ispcl-centerpos' ) ) {
+        return 'center';
+    }
+    if ( viewElement.hasClass( 'ispcl-rightpos' ) ) {
+        return 'right';
+    }
+    return null;
+}
+
+
+/**
+ * Returns the name of the CSS class implementing the model position attributes 'left', 'center', 'right'
+ * @param {string} modelPositionAttribute 
+ * @returns 
+ */
+function getPositionClass( modelPositionAttribute ) {
+    switch ( modelPositionAttribute ) {
+        case 'left':
+            return 'ispcl-leftpos';
+        case 'center':
+            return 'ispcl-centerpos';
+        case 'right':
+            return 'ispcl-rightpos';
+        default:
+            return '';
+    }
+}
+
+/**
  * Returns a definition of view attributes from model attributes for the model Elemet isPencil
  * 
  * @param {object} modelElement 
@@ -179,6 +218,8 @@ export default class IsPencilEditing extends Plugin {
 function makeIsPencilViewAttributes( modelElement ) {
     // Add a border to the container div, only if required. In absence of this class there is no border 
     let classes = 'ispcl-fitcontent';
+    // Add the positioning class. It is present in any case
+    classes += ' ' + getPositionClass( modelElement.getAttribute( 'position' ) );
     const hasBorder = modelElement.getAttribute( 'hasBorder' );
     if ( hasBorder && hasBorder == true ) {                  
         classes += ' ispcl-thinborder';

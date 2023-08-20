@@ -2,6 +2,7 @@
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import IsPencilEditing from './ispencilediting';
+import IsPencilToolbar from './ispenciltoolbar';
 
 export default class IsPencil extends Plugin {
 
@@ -10,6 +11,6 @@ export default class IsPencil extends Plugin {
 	}
 
     static get requires() {
-        return [ IsPencilEditing ];
+        return [ IsPencilEditing, IsPencilToolbar ];
     }
 }

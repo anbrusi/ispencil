@@ -84,7 +84,8 @@ ClassicEditor.defaultConfig = {
 		width: 400,
 		height: 400,
 		position: 'center',
-		hasBorder: false
+		hasBorder: false,
+		toolbar: [ 'isPencilLeft', 'isPencilCenter', 'isPencilRight' ]
 	},
 	// This value must be kept in sync with the language defined in webpack.config.js.
 	language: 'en'

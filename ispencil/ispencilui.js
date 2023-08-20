@@ -2,7 +2,6 @@
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import ButtonView from '@ckeditor/ckeditor5-ui/src/button/buttonview';
-import isPencilIcon from '../theme/icons/pencil_8.svg';
 import leftPosIcon from '../theme/icons/ispcl-i-floatleft.svg';
 import centerPosIcon from '../theme/icons/ispcl-i-center.svg';
 import rightPosIcon from '../theme/icons/ispcl-i-floatright.svg';
@@ -18,37 +17,22 @@ export default class IsPencilUI extends Plugin {
     static get pluginName() {
 		return 'IsPencilUI';
 	}
-
+    
     init() {
         // console.log( 'IsPencilUI#init() got called' );
         
         const editor = this.editor;
         const t = editor.t;
         const isCanvas = editor.plugins.get( IsCanvas );
-        // const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
+        const isPencilToolbar = editor.plugins.get( IsPencilToolbar );
 
-        // This is the button in the editor toolbar
-        /*
-        editor.ui.componentFactory.add( 'isPencil', locale => {
-            const command = editor.commands.get( 'isPencilInsertCommand' );
-            const buttonView = new ButtonView( locale );
-
-            buttonView.set( {
-                label: t( 'IsPencil' ),
-                icon: isPencilIcon,
-                tooltip: true
-            } );
-            // Bind the state of the button to the command
-            buttonView.bind( 'isOn', 'isEnabled' ).to( command, 'value', 'isEnabled');
-            // Execute the command when the button is clicked
-            this.listenTo( buttonView, 'execute', () => editor.execute( 'isPencilInsertCommand' ) );
-            return buttonView;
-        } );
-        */
-
-        // Pencil insert button with dropdown in the editor toolbar
+        /**
+         * Factpry for isPencilCocpit. This is a dropdown panel, offering a split button with:
+         *      - a button to insert a new IsPencil widget
+         *      - a dropdown panel with several buttons to customize the mode (draw, draw straigt lines, erase) and the pen (color, width)
+         * isPencilInsertCommand is define in plugin IsPencilInsertCommand and registered in IsPencilEditing#Init.
+         */
         editor.ui.componentFactory.add( 'isPencilCockpit', locale => {
-            const command = editor.commands.get( 'isPencilInsertCommand' );
             const dropdown = createDropdown( locale, SplitButtonView );
             // At this point, we should not used the unqualified buttonView, since it duplicates to both buttons action and arrow
             dropdown.buttonView.actionView.set( {
@@ -73,8 +57,6 @@ export default class IsPencilUI extends Plugin {
          * They show the current style of the related widget, by highlighting the corresponding icon.
          * This is achieved, by binding the icon view's isOn to the properties *.PosActive of IsPencilToolbar
          */
-
-        /*
         editor.ui.componentFactory.add( 'isPencilLeft', locale => {
             const buttonView = new ButtonView( locale );
 
@@ -116,7 +98,6 @@ export default class IsPencilUI extends Plugin {
             this.listenTo( buttonView, 'execute', () => editor.execute( 'isPencilPosCommand', 'right' ) );
             return buttonView;
         } );
-        */
     }
 
 }

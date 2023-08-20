@@ -14,6 +14,7 @@ export default class IsPencilPosCommand extends Command {
      * @param {string} position
      */
     execute( position ) {
+        console.log( 'ispencilposcommend#execute position', position );
         const model = this.editor.model;  
         const selection = model.document.selection;
         const selectedModelElement = selection.getSelectedElement();
