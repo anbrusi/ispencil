@@ -21,6 +21,7 @@ import { Widget, toWidget } from '@ckeditor/ckeditor5-widget';
 import { refreshCanvas } from './ispen/ispenengine';
 import IsPencilInsertCommand from './ispencilinsertcommand';
 import IsPencilPosCommand from './ispencilposcommand';
+import IsResizing from './resize/isresizing';
 
 export default class IsPencilEditing extends Plugin {
 
@@ -36,18 +37,19 @@ export default class IsPencilEditing extends Plugin {
         // console.log('IsPencilEditing#init');
         this._defineSchema();
         this._defineConverters();
-        this.pendingCanvases = new Set();
+        this.pendingCanvasDomElements = new Set();
         this.editor.editing.view.on( 'render', () => { 
-            for ( let canvas of this.pendingCanvases ) {
-                refreshCanvas( canvas );
+            for ( let canvasDomElement of this.pendingCanvasDomElements ) {
+                refreshCanvas( canvasDomElement );
                 // console.log( 'refreshed canvas', canvas );
-                this.pendingCanvases.delete( canvas );
-            }
-            // console.log( 'pending canvases after refresh', this.pendingCanvases );
+                this.pendingCanvasDomElements.delete( canvasDomElement );
+            };
         } );
         this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
         this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
         // this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
+
+        this.isResizing = new IsResizing( this.editor );
     }
 
     _defineSchema() {
@@ -146,10 +148,11 @@ export default class IsPencilEditing extends Plugin {
                 attributes: [ 'hasBorder', 'position' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
-                // class is a string with all classes to be used in addition to automatic CKEditor classes
-                const widgetView = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
-                return toWidget( widgetView, viewWriter, { hasSelectionHandle: true } );
-                // return widgetView;
+                const widgetBasicViewElement = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
+                const widgetViewElement = toWidget( widgetBasicViewElement, viewWriter, { hasSelectionHandle: true } );
+                const resizerViewElement = this.isResizing.createResizer( viewWriter );
+                viewWriter.insert(viewWriter.createPositionAt(widgetViewElement, 'end' ), resizerViewElement);
+                return widgetViewElement;
             }
         } );
 
@@ -160,10 +163,11 @@ export default class IsPencilEditing extends Plugin {
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
-                const canvasView = viewWriter.createRawElement( 'canvas', makeIsPencilCanvasViewAttributes(  modelElement ) );
+                const attributes =  makeIsPencilCanvasViewAttributes(  modelElement );
+                const canvasView = viewWriter.createRawElement( 'canvas', attributes );
                 canvasView.render = ( domElement, domConverter) => {
                     // console.log('rendering dom element', domElement);
-                    this.pendingCanvases.add( domElement );
+                    this.pendingCanvasDomElements.add( domElement );
                 };
                 return canvasView;
             }
@@ -216,6 +220,12 @@ function getPositionClass( modelPositionAttribute ) {
  * @returns 
  */
 function makeIsPencilViewAttributes( modelElement ) {
+    // This is a strange quirk. Height and width of canvas are attributes, not CSS styles.
+    // If a canvas with height 200 is in a div, that div will have a content with CSS Height 204px.
+    // width: fit-acontent on the other hand adapts correctly to the attribute width of the canvas.
+    // This behaviour was verified with a pure HTML file, it is not peculiar to CKEditor
+    // The best solution I found, was to set a CSS height style to the div equal to the attribute height of the canvas
+    const height = modelElement.getChild(0).getAttribute( 'height' );
     // Add a border to the container div, only if required. In absence of this class there is no border 
     let classes = 'ispcl-fitcontent';
     // Add the positioning class. It is present in any case
@@ -225,7 +235,8 @@ function makeIsPencilViewAttributes( modelElement ) {
         classes += ' ispcl-thinborder';
     };
     let attributes = {
-        class: classes // attributes.class is a space separated list of CSS classes
+        class: classes, // attributes.class is a space separated list of CSS classes
+        style: `height: ${height}px;` // redundant height setting to compensate for the quirk allocating extra 4px to the div
     }
     return attributes;
 }

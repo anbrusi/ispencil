@@ -6,13 +6,17 @@ body {
 }
 .ispcl-fitcontent {
     width: fit-content;
+    height: fit-content;
 }
 .ispcl-thinborder {
     border: 1px solid black;
 }
 .ispcl-active {
     border: 3px solid lime;
-    margin-bottom: -3px;
+    margin-bottom: 0px;
+}
+.ispcl-inactive {
+    background-color: gainsboro;
 }
 .ispcl-leftpos {
     float: left;
