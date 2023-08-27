@@ -28,12 +28,7 @@ export default class IsCanvas extends Plugin {
             // The retrieval of editorClientArea did not work in init outside of this callback, because init is called before
             // the HTML collection can be queried.       
             const collection = domDocument.getElementsByClassName( 'ck-editor__main' );
-            /*
-            console.log( 'collection', collection );
-            for ( let item of collection ) {
-                console.log( 'collection item', item );
-            }
-            */
+            // Attach listeners only inside the editor, lest isPencils outside could cause problems
             const editorClientArea = collection[ 0 ];
             if ( editorClientArea ) {
                 this._observer.listenTo( editorClientArea, 'pointerdown', this._pointerdownListener.bind( this ) );
@@ -41,11 +36,6 @@ export default class IsCanvas extends Plugin {
                 this._observer.listenTo( editorClientArea, 'pointerup', this._pointerupListener.bind( this ) );
             }
         } );
-        /* this worked, but could cause problems on pages displaying isPencil widgets outside of the editor
-        this._observer.listenTo( domDocument, 'pointerdown', this._pointerdownListener.bind( this ) );
-        this._observer.listenTo( domDocument, 'pointermove', this._pointermoveListener.bind( this ) );
-        this._observer.listenTo( domDocument, 'pointerup', this._pointerupListener.bind( this ) );
-        */ 
 
         this.isPencilEditing = this.editor.plugins.get( IsPencilEditing );
 
@@ -200,7 +190,6 @@ export default class IsCanvas extends Plugin {
                         this._closeCanvas( this._currentCanvasViewElement );
                     }
                 }
-                this.isPencilEditing.isResizing.setCurrentWidget(canvasViewElement );
                 this._currentCanvasViewElement = canvasViewElement;
             }
         } else {
@@ -216,8 +205,11 @@ export default class IsCanvas extends Plugin {
                 }
             }
             this._currentCanvasViewElement = null;
-            this.isPencilEditing.isResizing.setCurrentWidget( this._currentCanvasViewElement );
         }
+    }
+
+    _mouseDownListener( event, domEventData ) {
+        console.log( 'mouseDownListener domEventData', domEventData );
     }
 
     _pointermoveListener(event, domEventData) {

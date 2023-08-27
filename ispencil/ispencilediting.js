@@ -30,7 +30,7 @@ export default class IsPencilEditing extends Plugin {
 	}
 
     static get requires() {
-        return [ Widget ];
+        return [ Widget, IsResizing ];
     }
 
     init() {
@@ -49,7 +49,7 @@ export default class IsPencilEditing extends Plugin {
         this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
         // this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
 
-        this.isResizing = new IsResizing( this.editor );
+        this.isResizing = this.editor.plugins.get( IsResizing );
     }
 
     _defineSchema() {
@@ -152,6 +152,11 @@ export default class IsPencilEditing extends Plugin {
                 const widgetViewElement = toWidget( widgetBasicViewElement, viewWriter, { hasSelectionHandle: true } );
                 const resizerViewElement = this.isResizing.createResizer( viewWriter );
                 viewWriter.insert(viewWriter.createPositionAt(widgetViewElement, 'end' ), resizerViewElement);
+
+                widgetViewElement.on( 'change', () => {
+                    console.log( 'widgetViewElement changed' );
+                } );
+
                 return widgetViewElement;
             }
         } );
