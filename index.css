@@ -24,6 +24,7 @@ body {
 }
 .ispcl-centerpos {
     margin: 0 auto;
+    clear: both;
 }
 .ispcl-rightpos {
     float: right;

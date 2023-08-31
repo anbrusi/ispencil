@@ -35,14 +35,15 @@ export default class IsCanvas extends Plugin {
                 this._observer.listenTo( editorClientArea, 'pointermove', this._pointermoveListener.bind( this ) );
                 this._observer.listenTo( editorClientArea, 'pointerup', this._pointerupListener.bind( this ) );
             }
+            // this.listenTo( this.editor.editing.view.document, 'mousedown', this._pointerdownListener.bind( this ) );
         } );
 
         this.isPencilEditing = this.editor.plugins.get( IsPencilEditing );
 
         /**
-         * This is the canvas view element after a pointer down on its canvas has been processed
+         * This is the canvas model element after a pointer down on its canvas has been processed
          */
-        this._currentCanvasViewElement = null;
+        this._currentCanvasModelElement = null;
 
         // These are the handlers for the default mode 
         this._pointerDownH = this._freePenPointerDownH;
@@ -60,11 +61,11 @@ export default class IsCanvas extends Plugin {
         this.stepType = 'L';
 
         /**
-         * this.segmentArray is loaded by this._openCanvas  and stored by this._closeCanvas
+         * this.segmentArray is loaded by this.openCanvas  and stored by this.closeCanvas
          * 
          * this.currSegment is set by this._newSegment
          * 
-         * this.ctx is the 2d drawing context of the current canvas. It is set by this._openCanvas
+         * this.ctx is the 2d drawing context of the current canvas. It is set by this.openCanvas
          */
 
         
@@ -124,7 +125,7 @@ export default class IsCanvas extends Plugin {
      */
     changeColor( newColor ) {
         this.color = newColor;
-        if (this._currentCanvasViewElement) {
+        if (this._currentCanvasModelElement) {
             this.ctx.strokeStyle = this.color;
         }
     }
@@ -137,86 +138,59 @@ export default class IsCanvas extends Plugin {
      */
     changeStroke( newStroke ) {
         this.stroke = newStroke;
-        if (this._currentCanvasViewElement) {
+        if (this._currentCanvasModelElement) {
             this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
         }
     }
 
     /**
-     * Sets the selection on the ispencil widget, if such a widget is clicked 
-     * and delegates the whole drawing handling to this._pointerDown
+     * This listener is not modal. The first click selects the widget, since there is no preventDefault in the subsequent handler chain
+     * There is no interference with moving the widget, because the default is prevented in the move chain.
+     * Moving remains possible, because clck on the handle and subsequent motion does not pass through canvas native handlers
      * 
      * @param {*} event 
      * @param {native dom event} domEventData 
      */
     _pointerdownListener(event, domEventData) {
+        console.log( 'pointer down ');
         const srcElement = domEventData.srcElement;
         if (srcElement.hasAttribute( 'data-ispcl-content' )) {
-            // Pointer went down on canvas
+            // domEventData.preventDefault();
+            // Pointer down on canvas
             const canvasViewElement = this.editor.editing.view.domConverter.mapDomToView(srcElement);
-            console.log( 'canvasViewElement', canvasViewElement );
-            let canvas = srcElement;
+            const canvasModelElement = this.editor.editing.mapper.toModelElement( canvasViewElement );
+            console.log( 'canvasModelElement', canvasModelElement );
             // Check if it is the current canvas
-            if ( this._currentCanvasViewElement && 
-                 canvasViewElement.getAttribute( 'data-ispcl-uid') == this._currentCanvasViewElement.getAttribute( 'data-ispcl-uid') ) {
-                // Pointerdown on the current canvas
-                if ( canvasViewElement.hasClass( 'ispcl-inactive') ) {
-                    // Pointerdown on current canvas, which is not active. Make it active and start painting
-                    if ( this._allowedPointer(domEventData) ) {
-                        // The background must be changed before opening the canvas. Otherwise it is not found
-                        this._setCanvasInactiveBackground( canvasViewElement, false );
-                        this._openCanvas( canvasViewElement );
-                        this._pointerDownH(event, domEventData);
-                    } else {
-                        // An active canvas was touched with a finger. Do nothing
-                    }                    
-                } else {
-                    // Ponterdown on current already active canvas. Start a segment
-                    if ( this._allowedPointer(domEventData) ) {
-                        console.log('start painting on canvas', this._activeUid);
-                        this._pointerDownH(event, domEventData);
-                    } else {
-                        // An active canvas was touched with a finger. Do nothing
-                    }
-                }
+            if ( this._currentCanvasModelElement && 
+                canvasModelElement.getAttribute( 'uid') == this._currentCanvasModelElement.getAttribute( 'uid') ) {
+                // Pointer down on current canvas
+                this._pointerDownH(event, domEventData);
             } else {
-                // Pointer down on non current canvas. Close a possibly active current canvas and make the new one current
-                this._setCanvasInactiveBackground( canvasViewElement, true );
-                if ( this._currentCanvasViewElement ) {
-                    // A previous canvas exists
-                    if (this._isInactiveCanvas( this._currentCanvasViewElement )) {
-                        this._setCanvasInactiveBackground( this._currentCanvasViewElement, false );
-                    } else {
-                        this._closeCanvas( this._currentCanvasViewElement );
-                    }
+                // Pointer down on a canvas, which is not current.
+                if ( this._currentCanvasModelElement ) {
+                    // There was a previously open canvas
+                    this.closeCanvas( this._currentCanvasModelElement );
                 }
-                this._currentCanvasViewElement = canvasViewElement;
+                this.openCanvas( canvasModelElement );
+                this._currentCanvasModelElement = canvasModelElement;
+                this._pointerDownH(event, domEventData);
             }
         } else {
-            // Pointerdown outside of canvas. There is no current canvas any more
-            // The Background must be changed, before closing the canvas. Closing makes changes that prevent finding the canvas
-            if (this._currentCanvasViewElement) {
-                if (this._isInactiveCanvas( this._currentCanvasViewElement )) {
-                    this._setCanvasInactiveBackground( this._currentCanvasViewElement, false );
-                } else {
-                    // Do not close an active canvas. If You click on another canvas while drawing the other canvas will not be opened
-                    // leaving the sgmantArray of the previous canvas intact. So a close would store the old content to the second canvas.
-                    this._closeCanvas( this._currentCanvasViewElement );
-                }
+            // pointer down outside of canvas
+            if ( this._currentCanvasModelElement ) {
+                // There was a previously open canvas
+                this.closeCanvas( this._currentCanvasModelElement );
+                this._currentCanvasModelElement = null;
             }
-            this._currentCanvasViewElement = null;
         }
-    }
 
-    _mouseDownListener( event, domEventData ) {
-        console.log( 'mouseDownListener domEventData', domEventData );
     }
 
     _pointermoveListener(event, domEventData) {
         const srcElement = domEventData.srcElement;
         if (srcElement.hasAttribute( 'data-ispcl-content' )) {
             // console.log('pointerMove on canvas', srcElement); 
-            if (this._allowedPointer(domEventData) && this._currentCanvasViewElement) {
+            if ( this._allowedPointer(domEventData) && this._currentCanvasModelElement ) {
                 this._pointerMoveH(event, domEventData);
             }
         }  
@@ -239,15 +213,18 @@ export default class IsCanvas extends Plugin {
      */
     _freePenPointerDownH(event, domEventData) {        
         if (this._allowedPointer(domEventData) && !this.pointerDown) {
-            domEventData.preventDefault();
-            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( this._currentCanvasViewElement );
+            // preventDefault cannot be called, when using the second non modal _pointerdownListener. 
+            // Otherwise the widget would never be selected
+            // domEventData.preventDefault();
+            const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
+            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( currentCanvasViewElement );
             this.pointerDown = true;
             if (domEventData.pointerType == 'mouse') {
                 canvasDomElement.style.cursor = 'crosshair';
             } else {
                 canvasDomElement.style.cursor = 'none';
             }
-            this.lastPos = this._canvasPos(domEventData);
+            this.lastPos = this._canvasPos(canvasDomElement, domEventData);
             this._newSegment(this.lastPos); // Initializes temporary points in any case
         }
     }
@@ -263,8 +240,10 @@ export default class IsCanvas extends Plugin {
     _freePenPointerMoveH(event, domEventData) {
         console.log('freePenPointerMoveH');
         if (this._allowedPointer(domEventData) && this.pointerDown) {
+            const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
+            const canvas = this.editor.editing.view.domConverter.mapViewToDom( currentCanvasViewElement );
             domEventData.preventDefault();
-            let pos = this._canvasPos(domEventData);
+            let pos = this._canvasPos(canvas, domEventData);
             let d2 = norm2(vector(this.lastPos, pos));
             // At the beginning of a segment short distances must be allowed, 
             // otherwise no "nearly points such as the one on i" could be drawn
@@ -286,14 +265,15 @@ export default class IsCanvas extends Plugin {
     _freePenPointerUpH(event, domEventData) {     
         if (this._allowedPointer(domEventData) && this.pointerDown) {
             domEventData.preventDefault();
-            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( this._currentCanvasViewElement );
+            const canvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
+            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( canvasViewElement );
             this.pointerDown = false;
             if (domEventData.pointerType == 'mouse') {
                 canvasDomElement.style.cursor = 'default';
             } else {
                 canvasDomElement.style.cursor = 'none';
             }
-            this.lastPos = this._canvasPos(domEventData);
+            this.lastPos = this._canvasPos(canvasDomElement, domEventData);
             this._newSegment(this.lastPos); // Initializes temporary points in any case
         }
     }
@@ -307,49 +287,17 @@ export default class IsCanvas extends Plugin {
     }
 
     /**
-     * Checks if canvas is active
-     * 
-     * @param {view element} canvasViewElement 
-     * @returns true if canvas has a lime border marking it as activem false else.
-     */
-    _isInactiveCanvas( canvasViewElement ) {
-        return canvasViewElement.hasClass( 'ispcl-inactive' );
-    }
-
-    /**
-     * If on == true a gainsboro background is set to canvas, if on == false it is removed
-     * 
-     * @param {view element} canvasViewElement 
-     * @param {bool} on 
-     */
-    _setCanvasInactiveBackground( canvasViewElement, on ) {
-        if ( canvasViewElement ) {
-            // The canvas must be redrawn after changing the background.
-            // A downcast would add this redrawing, but a simple view change does not.
-            // Leaving the widget causes via this._closeCanvas a downcast and then everything is ok, but it is too late
-            const canvas = this.editor.editing.view.domConverter.mapViewToDom( canvasViewElement );
-            this.isPencilEditing.pendingCanvasDomElements.add( canvas );
-            this.editor.editing.view.change( writer => {
-                console.log( 'iscanvas._setCanvasInactiveBackground change viewElement', canvasViewElement );
-                if ( on ) {
-                    writer.addClass( 'ispcl-inactive', canvasViewElement );
-                } else {
-                    writer.removeClass( 'ispcl-inactive', canvasViewElement );
-                }
-            });
-        }
-    }
-    /**
      * Is called when the pointer went down on the current canvas before it became active
      * Loads drawings stored in the data-part of the canvas and the current drawing ctx parameters
      * Makes canvas active (signalled by a lime border on canvas) and ready for drawing
      * 
-     * @param {view element} canvasViewElement 
+     * @param {model element} canvasModelElement 
      */
-    _openCanvas( canvasViewElement ) {
-        if ( canvasViewElement ) {
-            let content = canvasViewElement.getAttribute( 'data-ispcl-content' );
+    openCanvas( canvasModelElement ) {
+        if ( canvasModelElement ) {
+            let content = canvasModelElement.getAttribute( 'content' );
             if ( content !== undefined) {
+                const canvasViewElement = this.editor.editing.mapper.toViewElement( canvasModelElement );
                 const canvas = this.editor.editing.view.domConverter.mapViewToDom( canvasViewElement );
                 // console.log('open canvas', this._uid);
                 content = content.replace( /!/g, '"')
@@ -368,14 +316,10 @@ export default class IsCanvas extends Plugin {
      * Stores drawing data in the data- part of the canvas and makes it inactive (signalled by the absence of the lime border).
      * Can be called in any case. If it is not called on an active canvas, it has no effect.
      * 
-     * @param {view element} canvasViewElement 
+     * @param {model element} canvasModelElement 
      */
-    _closeCanvas( canvasViewElement ) {
-        if ( canvasViewElement ) { 
-            const canvasUid = canvasViewElement.getAttribute( 'data-ispcl-uid' );
-            console.log('iscanvas._closeCanvas close canvas with uid', canvasUid );
-            // From View to model
-            const canvasModelElement = this.editor.editing.mapper.toModelElement( canvasViewElement ); 
+    closeCanvas( canvasModelElement ) {
+        if ( canvasModelElement ) { 
             let encoded = JSON.stringify(this.segmentArray);
             encoded = encoded.replace( /"/g, '!' );
             // Reflect DOM changes to model changes
@@ -412,8 +356,7 @@ export default class IsCanvas extends Plugin {
      * 
      * @param {object} event 
      */
-    _canvasPos(event) {
-        const canvas = this.editor.editing.view.domConverter.mapViewToDom( this._currentCanvasViewElement );
+    _canvasPos(canvas, event) {
         let rect = canvas.getBoundingClientRect();
         return {
             x: event.pageX - rect.left - window.scrollX,
@@ -451,6 +394,7 @@ export default class IsCanvas extends Plugin {
      * @param {object} p2 
      */
     _drawLineSegment(p1, p2) {
+        console.log( 'drawLineSegment' );
         this.ctx.beginPath();
         this.ctx.moveTo(p1.x, p1.y);
         this.ctx.lineTo(p2.x, p2.y);

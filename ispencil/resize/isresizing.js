@@ -2,16 +2,34 @@
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { Template } from '@ckeditor/ckeditor5-ui';
+import { DomEmitterMixin, global } from '@ckeditor/ckeditor5-utils';
 
 export default class IsResizing extends Plugin {
 
     init() {
+        const domDocument = global.window.document;
+
         /**
          * This is the current widget on which the methods of this class act
          */
         this._widgetViewElement = null;
 
+        /**
+         * The last selected widget model element or null. Used to hide resizer on no longer selected widgets
+         */
         this._selectedModelElement = null;
+
+        /**
+         * true if a resizer is active, false else
+         */
+        this._activeResizer = false;
+
+        /**
+         * One of 'left' or 'right' if a resizer is active, depending on which handle made it active
+         */
+        this._handlePosition = null;
+
+        this._originalResizerSize 
 
         // Resizer dimensions and visibility must be set in a selection handler and not as a reaction
         // to canvas mouse clicks, because a click on a positioning handle would not handle the resizer
@@ -41,7 +59,10 @@ export default class IsResizing extends Plugin {
             // console.log( 'editor.ui update fired' )
         } );
 
-        // this.listenTo( this.editor.editing.view.document, 'mousedown', this._mouseDownListener.bind( this ), { priority: 'high' } );
+        this.listenTo( this.editor.editing.view.document, 'mousedown', this._mouseDownListener.bind( this ), { priority: 'high' } );
+        this._observer = new (DomEmitterMixin())();
+        this._observer.listenTo(domDocument, 'mousemove', this._mouseMoveListener.bind(this));
+        this._observer.listenTo(domDocument, 'mouseup', this._mouseUpListener.bind(this));
     }
 
     createResizer( viewWriter ) {
@@ -128,7 +149,8 @@ export default class IsResizing extends Plugin {
      * @returns 
      */
     getChildByClass( className ) {
-        if ( this._widgetViewElement === null ) {
+        // Do not compare to null, because this.setCurrentWidget might return undefined
+        if ( !this._widgetViewElement ) {
             return null;
         }
         const children = this._widgetViewElement.getChildren();
@@ -140,6 +162,12 @@ export default class IsResizing extends Plugin {
         return null;
     }
 
+    /**
+     * Callback to an observeble
+     * 
+     * @param {*} event 
+     * @param {*} domEventData 
+     */
     _mouseDownListener( event, domEventData ) {
         const domTarget = domEventData.domTarget;
         // console.log( 'isresizing mouse down on target', domTarget );
@@ -147,7 +175,69 @@ export default class IsResizing extends Plugin {
             console.log( 'clicked handle' );
             event.stop();
             domEventData.preventDefault();
+            this._activeResizer = true;
+            this._handlePosition = handlePosition( domTarget );
+            this._originalCoordinates = extractCoordinates(domEventData.domEvent);
+            this._originalResizerSize = this._getResizerSize();
+            console.log( 'originalCoordinates', this._originalCoordinates );
         }
+    }
+
+    _mouseUpListener( event, domEventData ) {
+        if ( this._activeResizer ) {
+            console.log ( 'mouse up on resizer ');
+            this._activeResizer = false;
+        }
+    }
+
+    /**
+     * Callback to a DomEmitterMixin
+     * 
+     * @param {*} event 
+     * @param {*} domEventData 
+     */
+    _mouseMoveListener( event, domEventData ) {
+        if ( this._activeResizer ) {
+            console.log( 'event', event );
+            console.log( 'domEventData', domEventData );
+            const newCoordinates = extractCoordinates(domEventData);
+            const proposedSize = this._proposeNewSize( newCoordinates );
+            console.log( 'proposedNewSize', proposedSize );
+            const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
+            this.editor.editing.view.change( (writer) => {
+                writer.setStyle( {
+                    width: proposedSize.width + 'px',
+                    height: proposedSize.height + 'px'
+                },  this._widgetViewElement );
+                writer.setStyle( {
+                    width: proposedSize.width + 'px',
+                    height: proposedSize.height + 'px'
+                },  resizerViewElement )
+            } );
+        }
+    }
+
+    _getResizerSize( ) {
+        const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
+        if ( resizerViewElement ) {
+            return {
+                width: parseInt( resizerViewElement.getStyle( 'width' ) ),
+                height: parseInt( resizerViewElement.getStyle( 'height' ) )
+            }
+        }
+    }
+
+    _proposeNewSize( newCoordinates ) {
+        let dx = newCoordinates.x - this._originalCoordinates.x;
+        let dy = newCoordinates.y - this._originalCoordinates.y;
+        if ( this._handlePosition == 'left' ) {
+            dx = - dx;
+        }
+        let newSize = {
+            width: this._originalResizerSize.width + dx,
+            height: this._originalResizerSize.height + dy
+        }
+        return newSize;
     }
 }
 
@@ -161,4 +251,27 @@ function getResizerClass(resizerPosition) {
 
 function isResizerHandle( domElement ) {
     return domElement?.classList.contains( 'ck-widget__resizer__handle' );
+}
+
+/**
+ * Returns one of 'left', 'right' if domElement is a resizer handle, null if it is not
+ * 
+ * @param {HTML dom element} domElement 
+ * @returns 
+ */
+function handlePosition( domElement ) {
+    if ( domElement?.classList.contains( 'ck-widget__resizer__handle-bottom-left' ) ) {
+        return 'left';
+    }
+    if ( domElement?.classList.contains( 'ck-widget__resizer__handle-bottom-right' ) ) {
+        return 'right';
+    }
+    return null;
+}
+
+function extractCoordinates(event) {
+    return {
+        x: event.pageX,
+        y: event.pageY
+    };
 }
