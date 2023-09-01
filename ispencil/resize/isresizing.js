@@ -29,7 +29,15 @@ export default class IsResizing extends Plugin {
          */
         this._handlePosition = null;
 
-        this._originalResizerSize 
+        /**
+         * The reference size (initial size) during resizing
+         */
+        this._originalResizerSize; 
+
+        /**
+         * The current resizer size. This will be taken as new size on mouseup in resizing
+         */
+        this._proposedSize;
 
         // Resizer dimensions and visibility must be set in a selection handler and not as a reaction
         // to canvas mouse clicks, because a click on a positioning handle would not handle the resizer
@@ -65,24 +73,35 @@ export default class IsResizing extends Plugin {
         this._observer.listenTo(domDocument, 'mouseup', this._mouseUpListener.bind(this));
     }
 
-    createResizer( viewWriter ) {
+    createResizer( viewWriter, position ) {
         const resizerViewElement = viewWriter.createUIElement('div', {
             class: 'ck ck-reset_all ck-widget__resizer'
         }, function (domDocument) {
-            // console.log( 'custom render function domDocument', domDocument );
-            // domDocument is the whole HTML document (the entire displayed page), not only the editor or part of it
             const domElement = this.toDomElement(domDocument);
-            // domElement is the just created resizer div
+            // domElement is the just created resizer div in the dom
             console.log( 'custom render function domElement', domElement );
-            const resizerPositions = ['bottom-right', 'bottom-left'];
-            for (const currentPosition of resizerPositions) {
-                let handle = new Template({
-                    tag: 'div',
-                    attributes: {
-                        class: `ck-widget__resizer__handle ${getResizerClass(currentPosition)}`
-                    }
-                }).render();
-                domElement.appendChild( handle );
+            let rightHandle = new Template( {
+                tag: 'div',
+                attributes: {
+                    class: 'ck-widget__resizer__handle ck-widget__resizer__handle-bottom-right'
+                }
+            } ).render();
+            let leftHandle = new Template( {
+                tag: 'div',
+                attributes: {
+                    class: 'ck-widget__resizer__handle ck-widget__resizer__handle-bottom-left'
+                }
+            } ).render();
+            switch ( position ) {
+                case 'left':
+                    domElement.appendChild( rightHandle );
+                    break;
+                case 'right':                    
+                    domElement.appendChild( leftHandle );
+                    break;
+                case 'center':             
+                    domElement.appendChild( leftHandle );
+                    domElement.appendChild( rightHandle );
             }
             return domElement;
         } );
@@ -99,7 +118,7 @@ export default class IsResizing extends Plugin {
     }
 
     /**
-     * If there is a current widge view element this method syncs resizer width and height to canvas width and height
+     * If there is a current widget view element this method syncs resizer width and height to canvas width and height
      * If this._widgetViewElement === null, this method has no effect
      */
     syncResizerDim() {
@@ -172,21 +191,28 @@ export default class IsResizing extends Plugin {
         const domTarget = domEventData.domTarget;
         // console.log( 'isresizing mouse down on target', domTarget );
         if ( isResizerHandle( domTarget ) ) {
-            console.log( 'clicked handle' );
+            // console.log( 'clicked handle' );
             event.stop();
             domEventData.preventDefault();
             this._activeResizer = true;
             this._handlePosition = handlePosition( domTarget );
             this._originalCoordinates = extractCoordinates(domEventData.domEvent);
             this._originalResizerSize = this._getResizerSize();
-            console.log( 'originalCoordinates', this._originalCoordinates );
+            // console.log( 'originalCoordinates', this._originalCoordinates );
         }
     }
 
     _mouseUpListener( event, domEventData ) {
         if ( this._activeResizer ) {
-            console.log ( 'mouse up on resizer ');
+            // console.log ( 'new size on mouseup', this._proposedSize );
             this._activeResizer = false;
+            const canvasModelElement = this._selectedModelElement.getChild(0);
+            this.editor.model.change( writer => {
+                writer.setAttributes({
+                    height: this._proposedSize.height,
+                    width: this._proposedSize.width
+                }, canvasModelElement );
+            } );
         }
     }
 
@@ -198,20 +224,20 @@ export default class IsResizing extends Plugin {
      */
     _mouseMoveListener( event, domEventData ) {
         if ( this._activeResizer ) {
-            console.log( 'event', event );
-            console.log( 'domEventData', domEventData );
+            // console.log( 'event', event );
+            // console.log( 'domEventData', domEventData );
             const newCoordinates = extractCoordinates(domEventData);
-            const proposedSize = this._proposeNewSize( newCoordinates );
-            console.log( 'proposedNewSize', proposedSize );
+            this._proposedSize = this._proposeNewSize( newCoordinates );
+            console.log( 'proposedNewSize', this._proposedSize );
             const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
             this.editor.editing.view.change( (writer) => {
                 writer.setStyle( {
-                    width: proposedSize.width + 'px',
-                    height: proposedSize.height + 'px'
+                    width: this._proposedSize.width + 'px',
+                    height: this._proposedSize.height + 'px'
                 },  this._widgetViewElement );
                 writer.setStyle( {
-                    width: proposedSize.width + 'px',
-                    height: proposedSize.height + 'px'
+                    width: this._proposedSize.width + 'px',
+                    height: this._proposedSize.height + 'px'
                 },  resizerViewElement )
             } );
         }
@@ -227,11 +253,20 @@ export default class IsResizing extends Plugin {
         }
     }
 
+    /**
+     * Returns the size of the resizer from page coordinates 'newCoordinates' of the mouse
+     * 
+     * @param {point} newCoordinates 
+     * @returns 
+     */
     _proposeNewSize( newCoordinates ) {
         let dx = newCoordinates.x - this._originalCoordinates.x;
         let dy = newCoordinates.y - this._originalCoordinates.y;
         if ( this._handlePosition == 'left' ) {
             dx = - dx;
+        }
+        if ( this._widgetViewElement.hasClass( 'ispcl-centerpos' ) ) {
+            dx *= 2;
         }
         let newSize = {
             width: this._originalResizerSize.width + dx,
@@ -239,14 +274,6 @@ export default class IsResizing extends Plugin {
         }
         return newSize;
     }
-}
-
-// @private
-// @param {String} resizerPosition Expected resizer position like `"top"`, `"bottomt"`.
-// @returns {String} A prefixed HTML class name for the resizer element
-function getResizerClass(resizerPosition) {
-    // return `is-widget__resizer__handle-${resizerPosition}`;
-    return `ck-widget__resizer__handle-${resizerPosition}`;
 }
 
 function isResizerHandle( domElement ) {
@@ -269,6 +296,12 @@ function handlePosition( domElement ) {
     return null;
 }
 
+/**
+ * Returns mouse page coordinates from a maouse event 'event'
+ * 
+ * @param {dom mouse event} event 
+ * @returns 
+ */
 function extractCoordinates(event) {
     return {
         x: event.pageX,

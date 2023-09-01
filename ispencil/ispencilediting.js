@@ -150,7 +150,7 @@ export default class IsPencilEditing extends Plugin {
             view: (modelElement, { writer: viewWriter } ) => {
                 const widgetBasicViewElement = viewWriter.createContainerElement( 'div', makeIsPencilViewAttributes(  modelElement ) );
                 const widgetViewElement = toWidget( widgetBasicViewElement, viewWriter, { hasSelectionHandle: true } );
-                const resizerViewElement = this.isResizing.createResizer( viewWriter );
+                const resizerViewElement = this.isResizing.createResizer( viewWriter, modelElement.getAttribute( 'position' ) );
                 viewWriter.insert(viewWriter.createPositionAt(widgetViewElement, 'end' ), resizerViewElement);
                 /*
                 widgetViewElement.on( 'change', () => {
