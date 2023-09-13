@@ -18,14 +18,16 @@ import ImageCaption from '@ckeditor/ckeditor5-image/src/imagecaption';
 import ImageStyle from '@ckeditor/ckeditor5-image/src/imagestyle';
 import ImageToolbar from '@ckeditor/ckeditor5-image/src/imagetoolbar';
 import ImageUpload from '@ckeditor/ckeditor5-image/src/imageupload';
-import Base64UploadAdapter from '@ckeditor/ckeditor5-upload/src/adapters/base64uploadadapter';
+
+// import Base64UploadAdapter from '@ckeditor/ckeditor5-upload/src/adapters/base64uploadadapter';
+import SimpleUploaadAdapter from '@ckeditor/ckeditor5-upload/src/adapters/simpleuploadadapter';
+
 import ImageResize from '@ckeditor/ckeditor5-image/src/imageresize';
 import MediaEmbed from '@ckeditor/ckeditor5-media-embed/src/mediaembed';
 
 // IsPencil additions
 import IsPencil from '../ispencil/ispencil';
-import IsPencilUI from '../ispencil/ispencilui';
-import IsCanvas from '../ispencil/ispen/iscanvas';
+import SimpleAudio from '@anbrusi/ckeditor5-simple-audio';
 
 export default class ClassicEditor extends ClassicEditorBase {}
 
@@ -42,12 +44,15 @@ ClassicEditor.builtinPlugins = [
 	ImageStyle,
 	ImageToolbar,
 	ImageUpload,
-	Base64UploadAdapter,
+
+	// Base64UploadAdapter,
+	// This change requires the entry simpleUploadUrl below
+	SimpleUploaadAdapter,
+
 	ImageResize,
 	MediaEmbed,
 	IsPencil,
-	IsPencilUI,
-	IsCanvas
+	SimpleAudio
 ];
 
 // Editor configuration.
@@ -63,7 +68,8 @@ ClassicEditor.defaultConfig = {
 			'|',
 			'uploadImage',
 			'mediaEmbed',
-			'isPencilCockpit'
+			'isPencilCockpit',
+			'simpleAudioButton'
 		]
 	},
 	image: {
@@ -76,6 +82,11 @@ ClassicEditor.defaultConfig = {
 			'imageTextAlternative'
 		]
 	},
+
+	simpleUpload: {
+		uploadUrl: 'https://myeclipse/nexteditor/isUpload.php'
+	},
+
 	mediaEmbed: {
 		previewsInData: true
 	},

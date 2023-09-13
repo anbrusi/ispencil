@@ -10,6 +10,7 @@
   "author": "A. Brunnschweiler",
   "license": "ISC",
   "dependencies": {
+    "@anbrusi/ckeditor5-simple-audio": "github:anbrusi/simple-audio",
     "@ckeditor/ckeditor5-basic-styles": "^38.0.1",
     "@ckeditor/ckeditor5-dev-utils": "^38.0.1",
     "@ckeditor/ckeditor5-editor-classic": "^38.0.1",
