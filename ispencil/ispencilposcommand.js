@@ -18,19 +18,17 @@ export default class IsPencilPosCommand extends Command {
      */
     execute( position ) {
         console.log( 'ispencilposcommend#execute position', position );
-        const model = this.editor.model;  
-        const selection = model.document.selection;
-        const selectedModelElement = selection.getSelectedElement();
-
+        // If the position changes, the model is downcated again, so it must be kept up to date
+        const selectedModelElement = this.isCanvas.selectedWidgetModelElement();
         if ( selectedModelElement ) {
-            const canvasModelElement =  selectedModelElement.getChild(0);
+            /*
+            const canvasModelElement = selectedModelElement.getChild(0);
             this.isCanvas.closeCanvas( canvasModelElement );
-            model.change( writer => {
+            */
+            this.editor.model.change( writer => {
                 writer.setAttribute( 'position', position, selectedModelElement );
             } );
-            this.isCanvas.openCanvas( canvasModelElement );
         }
-
     }
 
     refresh() {     

@@ -4,6 +4,8 @@ import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { DomEmitterMixin, global } from '@ckeditor/ckeditor5-utils';
 import { logError } from '@ckeditor/ckeditor5-utils/src/ckeditorerror';
 import IsPencilEditing from '../ispencilediting';
+// import { refreshCanvas } from '../ispen/ispenengine';
+import { IsPenEngine } from '../ispen/ispenengine';
 
 export default class IsCanvas extends Plugin {
 
@@ -24,19 +26,35 @@ export default class IsCanvas extends Plugin {
         // Plugins are Observable, but this.ListenTo would not do, since we need a DomEmitterMixin, not just a an EmitterMixin
         // DOM emitter mixin is by default available in the View class, but it can also be mixed into any other class:
         this._observer = new (DomEmitterMixin())();
+
+        /* Abandoned trial
         this.editor.on('ready', () => {   
             // The retrieval of editorClientArea did not work in init outside of this callback, because init is called before
             // the HTML collection can be queried.       
             const collection = domDocument.getElementsByClassName( 'ck-editor__main' );
+
             // Attach listeners only inside the editor, lest isPencils outside could cause problems
             const editorClientArea = collection[ 0 ];
             if ( editorClientArea ) {
-                this._observer.listenTo( editorClientArea, 'pointerdown', this._pointerdownListener.bind( this ) );
+                this._observer.listenTo( domDocument, 'pointerdown', this._pointerdownListener.bind( this ) );
                 this._observer.listenTo( editorClientArea, 'pointermove', this._pointermoveListener.bind( this ) );
                 this._observer.listenTo( editorClientArea, 'pointerup', this._pointerupListener.bind( this ) );
             }
             // this.listenTo( this.editor.editing.view.document, 'mousedown', this._pointerdownListener.bind( this ) );
         } );
+        */
+
+        /* Does not work, because 'ispencil_canvas' elements are shadowed inside textarea and not loaded elsewhere afterwards
+        this.editor.on( 'ready', () => {
+            const oldCandidates = document.getElementsByClassName( 'ispencil_canvas' );
+            console.log( 'IsCanvas#init document', document );
+            console.log( 'IsCanvas#init old ispencil candidates', oldCandidates );
+        } );
+        */
+
+        this._observer.listenTo( domDocument, 'pointerdown', this._pointerdownListener.bind( this ) );
+        this._observer.listenTo( domDocument, 'pointermove', this._pointermoveListener.bind( this ) );
+        this._observer.listenTo( domDocument, 'pointerup', this._pointerupListener.bind( this ) );
 
         this.isPencilEditing = this.editor.plugins.get( IsPencilEditing );
 
@@ -51,28 +69,64 @@ export default class IsCanvas extends Plugin {
         this._pointerUpH = this._freePenPointerUpH;
          
         // The following are initial values, current values are set 
+        this.mode = 'freePen'
         this.color = 'black';
         this.stroke = 'medium';
 
         // The pointer is down on a canvas for ispencil use
         this.pointerDown = false;
 
-        // Step type is either 'L' for lines or 'B' for Bezier curves
-        this.stepType = 'L';
+        const options = {};
+        this.isPenEngine = new IsPenEngine( options );
+    }
 
-        /**
-         * this.segmentArray is loaded by this.openCanvas  and stored by this.closeCanvas
-         * 
-         * this.currSegment is set by this._newSegment
-         * 
-         * this.ctx is the 2d drawing context of the current canvas. It is set by this.openCanvas
-         */
+    _currentCanvasDomElement() {
+        const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement);
+        if ( currentCanvasViewElement ) {
+            return this.editor.editing.view.domConverter.viewToDom( currentCanvasViewElement );
+        }
+        return null;
+    }
 
-        
-        /**
-         * Minimal square distance between two registered points
-         */
-        this.minDist2 = 20;
+    /**
+     * 
+     * @returns the current resizerViewElement derived from this._currentCanvasModelElement or null
+     */
+    _currentResizerViewElement() {
+        const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement);
+        if ( currentCanvasViewElement ) {
+            const currentWidgetViewElement = currentCanvasViewElement.parent;
+            const children = currentWidgetViewElement.getChildren();
+            for ( let child of children ) {
+                if ( child.hasClass( 'ck-widget__resizer' ) ) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    _currentResizerDomElement() {
+        const currentResizerViewElement = this._currentResizerViewElement();
+        if (currentResizerViewElement ) {
+            return this.editor.editing.view.domConverter.viewToDom( currentResizerViewElement );
+        }
+        return null;
+    }
+
+    /**
+     * 
+     * @returns the current rubber line dom element or null
+     */
+    _currentRubberDomElement() {
+        const currentResizerViewElement = this._currentResizerViewElement();
+        const currentResizerDomElement = this.editor.editing.view.domConverter.mapViewToDom( currentResizerViewElement );
+        for ( let child of currentResizerDomElement.children ) {
+            if ( child.classList.contains( 'ispcl-rubber-line' ) ) {
+                return child;
+            }
+        }
+        return null;
     }
 
     /**
@@ -106,7 +160,7 @@ export default class IsCanvas extends Plugin {
                 this._pointerMoveH = this._freePenPointerMoveH;
                 this._pointerUpH = this._freePenPointerUpH;
                 break;
-            case 'straightLine':
+            case 'straightLines':
                 this._pointerDownH = this._straightLinesPointerDownH;
                 this._pointerMoveH = this._straightLinesPointerMoveH;
                 this._pointerUpH = this._straightLinesPointerUpH;
@@ -116,6 +170,7 @@ export default class IsCanvas extends Plugin {
                 this._pointerMoveH= this._erasePointerMoveH;
                 this._pointerUpH = this._erasePointerUpH;
         }
+        this.mode = newMode;
     }
 
     /**
@@ -143,6 +198,20 @@ export default class IsCanvas extends Plugin {
         }
     }
 
+    /* 
+    // This was a beginning of an attempt to associate move and up listeners to the canvas instead of the document
+    // It did not prevent drag, when leaving the widget. Only preventDefault on down helped
+    _setCanvasListeners( canvasModelElement ) {
+        const canvasViewElement = this.editor.editing.mapper.toViewElement( canvasModelElement);
+        if ( canvasViewElement ) {
+            const canvasDomElement = this.editor.editing.view.domConverter.viewToDom( canvasViewElement );
+            canvasDomElement.setAttribute( 'draggable', false );
+            this._observer.listenTo( canvasDomElement, 'pointermove', this._pointermoveListener.bind( this ) );
+            this._observer.listenTo( canvasDomElement, 'pointerup', this._pointerupListener.bind( this ) );
+        }
+    }
+    */
+
     /**
      * This listener is not modal. The first click selects the widget, since there is no preventDefault in the subsequent handler chain
      * There is no interference with moving the widget, because the default is prevented in the move chain.
@@ -153,30 +222,68 @@ export default class IsCanvas extends Plugin {
      */
     _pointerdownListener(event, domEventData) {
         console.log( 'pointer down ');
+        // Usde for focusing and unfocusing the widget
+        const view = this.editor.editing.view;
+        const viewDocument = view.document;
         const srcElement = domEventData.srcElement;
-        if (srcElement.hasAttribute( 'data-ispcl-content' )) {
-            // domEventData.preventDefault();
-            // Pointer down on canvas
-            const canvasViewElement = this.editor.editing.view.domConverter.mapDomToView(srcElement);
-            const canvasModelElement = this.editor.editing.mapper.toModelElement( canvasViewElement );
-            console.log( 'canvasModelElement', canvasModelElement );
-            // Check if it is the current canvas
-            if ( this._currentCanvasModelElement && 
-                canvasModelElement.getAttribute( 'uid') == this._currentCanvasModelElement.getAttribute( 'uid') ) {
-                // Pointer down on current canvas
-                this._pointerDownH(event, domEventData);
+        if ( this._srcInEditor( srcElement ) ) {
+            // console.log( 'isCanvas#pointerdownListener source in editor ', srcElement );
+            if (srcElement.hasAttribute( 'data-ispcl-content' )) {
+                // Pointer down on canvas
+                const canvasViewElement = this.editor.editing.view.domConverter.mapDomToView(srcElement);
+                const canvasModelElement = this.editor.editing.mapper.toModelElement( canvasViewElement );
+
+                // If we do not prevent default, mouse motion would drag the whole widget, as soon as the mouse leaves the widget area
+                // If on the contrary we prevent default, clicking on the widget would not focus it,
+                // The chosen method is to prevent default and focus the widget programmatically in this method, when it is clicked
+                // Unfortunately focusing works only if the whole editor is focused, so we must make both: 
+                // focus the editor if it is not already focused, and focus the widget
+                domEventData.preventDefault();
+                // Focus the editor. 
+                // Focus editor if is not focused already. Outside the widget it is automatic, since there we do not prevent default
+                if (!viewDocument.isFocused) {
+                    view.focus();
+                }
+                // Focus the widget
+                this.editor.model.change(writer => {
+                    writer.setSelection(writer.createRangeOn(canvasModelElement.parent));
+                });
+
+                // Check if it is the current canvas
+                if ( this._currentCanvasModelElement && 
+                    canvasModelElement.getAttribute( 'uid') == this._currentCanvasModelElement.getAttribute( 'uid') ) {
+                    // Pointer down on current canvasthis.
+                    // Possibly the resizer has been hidden by clicking outside of the editor
+                    this.isPencilEditing.isResizing.showResizer( canvasModelElement.parent );
+                    this._pointerDownH(event, domEventData);
+                } else {
+                    // Pointer down on a canvas, which is not current.
+                    // this._setCanvasListeners( canvasModelElement );
+                    if ( this._currentCanvasModelElement ) {
+                        // There was a previously open canvas
+                        this.closeCanvas( this._currentCanvasModelElement );
+                    }
+                    this.isPenEngine.loadFromCanvas( srcElement );
+                    this._currentCanvasModelElement = canvasModelElement;
+                    this._pointerDownH(event, domEventData);
+                }
             } else {
-                // Pointer down on a canvas, which is not current.
+                // pointer down outside of canvas
+                console.log( 'IsCanvas#_pointerdownListener source element', srcElement );
                 if ( this._currentCanvasModelElement ) {
                     // There was a previously open canvas
                     this.closeCanvas( this._currentCanvasModelElement );
+                    this._currentCanvasModelElement = null;
                 }
-                this.openCanvas( canvasModelElement );
-                this._currentCanvasModelElement = canvasModelElement;
-                this._pointerDownH(event, domEventData);
             }
         } else {
-            // pointer down outside of canvas
+            console.log( 'isCanvas#pointerdownListener source NOT in editor ', srcElement );
+            // Hiding of the resizer is usually done in IsResizing on selection handler,
+            // when the selection shifts away from the currently selected widget.
+            // Outside of the editor there is no selection change and the resizer must be hidden outside of the selection handler
+            if ( this.isPencilEditing.isResizing.lastSelectedModelElement ) {
+                this.isPencilEditing.isResizing.hideResizer( this.isPencilEditing.isResizing.lastSelectedModelElement );
+            }
             if ( this._currentCanvasModelElement ) {
                 // There was a previously open canvas
                 this.closeCanvas( this._currentCanvasModelElement );
@@ -186,10 +293,23 @@ export default class IsCanvas extends Plugin {
 
     }
 
+    /**
+     * 
+     * @param {dom element} src 
+     */
+    _srcInEditor( src ) {
+        while ( src ) {
+            if (src.classList.contains( 'ck-editor__main' ) || src.classList.contains( 'ck-editor__top' ) ) {
+                return true;
+            }
+            src = src.parentElement;
+        }
+        return false;
+    }
+
     _pointermoveListener(event, domEventData) {
         const srcElement = domEventData.srcElement;
         if (srcElement.hasAttribute( 'data-ispcl-content' )) {
-            // console.log('pointerMove on canvas', srcElement); 
             if ( this._allowedPointer(domEventData) && this._currentCanvasModelElement ) {
                 this._pointerMoveH(event, domEventData);
             }
@@ -213,115 +333,167 @@ export default class IsCanvas extends Plugin {
      */
     _freePenPointerDownH(event, domEventData) {        
         if (this._allowedPointer(domEventData) && !this.pointerDown) {
-            // preventDefault cannot be called, when using the second non modal _pointerdownListener. 
-            // Otherwise the widget would never be selected
-            // domEventData.preventDefault();
-            const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
-            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( currentCanvasViewElement );
+            const canvasDomElement = this._currentCanvasDomElement();
             this.pointerDown = true;
             if (domEventData.pointerType == 'mouse') {
                 canvasDomElement.style.cursor = 'crosshair';
             } else {
                 canvasDomElement.style.cursor = 'none';
             }
-            this.lastPos = this._canvasPos(canvasDomElement, domEventData);
-            this._newSegment(this.lastPos); // Initializes temporary points in any case
+            const startPos = this._domPos( canvasDomElement, domEventData );  
+            const width = _lineWidthFromStroke( this.stroke );   
+            this.isPenEngine.startPath( canvasDomElement, startPos, width, this.color, 'C' );
         }
     }
 
-    _straightLinesPointerDownH(event, domEventData) {
-
+    _straightLinesPointerDownH(event, domEventData) {  
+        if (this._allowedPointer(domEventData) && !this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            this.pointerDown = true;
+            if (domEventData.pointerType == 'mouse') {
+                canvasDomElement.style.cursor = 'crosshair';
+            } else {
+                canvasDomElement.style.cursor = 'none';
+            }
+            const startPos = this._domPos( canvasDomElement, domEventData );  
+            const width = _lineWidthFromStroke( this.stroke );   
+            this.isPenEngine.startPath( canvasDomElement, startPos, width, this.color, 'L' );
+            // Start the rubber line
+            this._setRubberLineAnchor( startPos );
+            this._showRubberLine();
+        }
     }
 
     _erasePointerDownH(event, domEventData){
         console.log('erasePointerDown');
+        if (this._allowedPointer(domEventData) && !this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            this.pointerDown = true;
+            if (domEventData.pointerType == 'mouse') {
+                canvasDomElement.style.cursor = 'crosshair';
+            } else {
+                canvasDomElement.style.cursor = 'none';
+            }
+            const pos = this._domPos(canvasDomElement, domEventData);
+            // Start the rubber rectangle
+            this._setRubberRectAnchor( pos );
+            this._showRubberRect();
+        }
     }
 
     _freePenPointerMoveH(event, domEventData) {
         console.log('freePenPointerMoveH');
         if (this._allowedPointer(domEventData) && this.pointerDown) {
-            const currentCanvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
-            const canvas = this.editor.editing.view.domConverter.mapViewToDom( currentCanvasViewElement );
-            domEventData.preventDefault();
-            let pos = this._canvasPos(canvas, domEventData);
-            let d2 = norm2(vector(this.lastPos, pos));
-            // At the beginning of a segment short distances must be allowed, 
-            // otherwise no "nearly points such as the one on i" could be drawn
-            if (d2 > this.minDist2 || this.segmentArray[this.currSegment].pts.length < 4) {
-                this._newPoint(pos);
-                this._drawLineSegment(this.lastPos, pos);
-                this.lastPos = pos;
-            }
+            const canvasDomElement = this._currentCanvasDomElement();
+            const point = this._domPos(canvasDomElement, domEventData);
+            this.isPenEngine.moveTo( point );
         }
     }
 
     _straightLinesPointerMoveH(event, domEventData) {
+        if (this._allowedPointer(domEventData) && this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            let pos = this._domPos(canvasDomElement, domEventData);
+            this._drawRubberLine( pos );
+        }
     }
 
     _erasePointerMoveH(event, domEventData) {
-
+        if (this._allowedPointer(domEventData) && this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            let pos = this._domPos(canvasDomElement, domEventData);
+            this._drawRubberRect( pos );
+        }
     }
 
     _freePenPointerUpH(event, domEventData) {     
         if (this._allowedPointer(domEventData) && this.pointerDown) {
-            domEventData.preventDefault();
-            const canvasViewElement = this.editor.editing.mapper.toViewElement( this._currentCanvasModelElement );
-            const canvasDomElement = this.editor.editing.view.domConverter.mapViewToDom( canvasViewElement );
+            const canvasDomElement = this._currentCanvasDomElement();
             this.pointerDown = false;
             if (domEventData.pointerType == 'mouse') {
                 canvasDomElement.style.cursor = 'default';
             } else {
                 canvasDomElement.style.cursor = 'none';
             }
-            this.lastPos = this._canvasPos(canvasDomElement, domEventData);
-            this._newSegment(this.lastPos); // Initializes temporary points in any case
+            const lastPoint = this._domPos( canvasDomElement, domEventData );
+            this.isPenEngine.terminatePath( lastPoint );
         }
     }
 
     _straightLinesPointerUpH(event, domEventData) {
-
+        if (this._allowedPointer(domEventData) && this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            this.pointerDown = false;
+            if (domEventData.pointerType == 'mouse') {
+                canvasDomElement.style.cursor = 'default';
+            } else {
+                canvasDomElement.style.cursor = 'none';
+            }
+            this._hideRubberLine();
+            const lastPoint = this._domPos( canvasDomElement, domEventData );
+            this.isPenEngine.terminatePath( lastPoint );
+        }
     }
 
     _erasePointerUpH(event, domEventData) {
+        if (this._allowedPointer(domEventData) && this.pointerDown) {
+            const canvasDomElement = this._currentCanvasDomElement();
+            this.pointerDown = false;
+            if (domEventData.pointerType == 'mouse') {
+                canvasDomElement.style.cursor = 'default';
+            } else {
+                canvasDomElement.style.cursor = 'none';
+            }
+            this._hideRubberRect();
+            const pos = this._domPos(canvasDomElement, domEventData);
+            const rubberRect = {
+                top: this._rubberRectAnchor[ 1 ],
+                left: this._rubberRectAnchor[ 0 ],
+                bottom: pos[ 1 ],
+                right: pos[ 0 ]
+            };
+            this.isPenEngine.erase( canvasDomElement, rubberRect );
+        }
+    }
 
+    _isInRubbeRect( pos, rubberEndPos ) {
+        if ( pos ) {
+            return pos.x >= this._rubberRectAnchor.x && pos.x <= rubberEndPos.x && pos.y >= this._rubberRectAnchor.y && pos.y <= rubberEndPos.y;
+        }
+        return false;
+    }
+
+    /** 
+     * @returns the isPencil model element, which is selected, or null
+     */
+    selectedWidgetModelElement() {
+        const model = this.editor.model;  
+        const selection = model.document.selection;
+        const selectedModelElement = selection.getSelectedElement();
+        if ( selectedModelElement && selectedModelElement.name == 'isPencil' ) {
+            return selectedModelElement;
+        }
+        return null;
     }
 
     /**
-     * Is called when the pointer went down on the current canvas before it became active
-     * Loads drawings stored in the data-part of the canvas and the current drawing ctx parameters
-     * Makes canvas active (signalled by a lime border on canvas) and ready for drawing
      * 
-     * @param {model element} canvasModelElement 
+     * @returns the selected canvas model element or null
      */
-    openCanvas( canvasModelElement ) {
-        if ( canvasModelElement ) {
-            let content = canvasModelElement.getAttribute( 'content' );
-            if ( content !== undefined) {
-                const canvasViewElement = this.editor.editing.mapper.toViewElement( canvasModelElement );
-                const canvas = this.editor.editing.view.domConverter.mapViewToDom( canvasViewElement );
-                // console.log('open canvas', this._uid);
-                content = content.replace( /!/g, '"')
-                this.segmentArray = JSON.parse(content);
-                // console.log('segmentArray', this._segmentArray);
-                this.ctx = canvas.getContext('2d');
-                // this is the initial value, which is dynamically changed by this.changeColor
-                this.ctx.strokeStyle = this.color;
-                this.ctx.lineWidth = _lineWidthFromStroke( this.stroke );
-            }
-        }
+    selectedCanvasModelElement() {
+        const selectedWidgetModelElement = this.selectedWidgetModelElement();
+        return selectedWidgetModelElement?.getChild(0);
     }
 
     /**
      * Is called when we have been working on a specific canvas and terminate drawing.
-     * Stores drawing data in the data- part of the canvas and makes it inactive (signalled by the absence of the lime border).
-     * Can be called in any case. If it is not called on an active canvas, it has no effect.
+     * Stores drawing data in the data- part of the canvas. .
      * 
      * @param {model element} canvasModelElement 
      */
     closeCanvas( canvasModelElement ) {
         if ( canvasModelElement ) { 
-            let encoded = JSON.stringify(this.segmentArray);
-            encoded = encoded.replace( /"/g, '!' );
+            const encoded = this.isPenEngine.getEncodedContent();
             // Reflect DOM changes to model changes
             this.editor.model.change( writer => {
                 writer.setAttribute( 'content', encoded, canvasModelElement );
@@ -352,101 +524,89 @@ export default class IsCanvas extends Plugin {
     }
     
     /**
-     * Returns the position of the event in canvas coordinates as an object with properties 'x' and 'y'
+     * Returns the position of the event in dom element coordinates as an array with x at position 0 and y at position 1
      * 
      * @param {object} event 
      */
-    _canvasPos(canvas, event) {
-        let rect = canvas.getBoundingClientRect();
-        return {
-            x: event.pageX - rect.left - window.scrollX,
-            y: event.pageY - rect.top - window.scrollY
-        }
-    }
-    
-    _newSegment(p) {
-        // Pen width is different for pen and marker, it is set in this.setMode
-        let segment = {
-            width: this.ctx.lineWidth,
-            color: this.ctx.strokeStyle, // the color of the stroke
-            stepType: this.stepType,
-            pts: []
-        }
-        this.segmentArray.push(segment);
-        this.currSegment = this.segmentArray.length - 1;
-        this._newPoint(p);
-    }
-    /**
-     * Adds a point 'pos' to pts array in the current segment this.currSegment
-     * 
-     * @param {object} pos 
-     */
-    _newPoint(pos) {
-        this.segmentArray[this.currSegment].pts.push(pos);
-    }
-    
-    /**
-     * Draws a single segment from point p1 to point p2 on canvas.
-     * Note that drawing consecutive segments should not be done with this method,
-     * because it would treat the segments as isolated, neglecting the joins
-     * 
-     * @param {object} p1 
-     * @param {object} p2 
-     */
-    _drawLineSegment(p1, p2) {
-        console.log( 'drawLineSegment' );
-        this.ctx.beginPath();
-        this.ctx.moveTo(p1.x, p1.y);
-        this.ctx.lineTo(p2.x, p2.y);
-        this.ctx.stroke();
+    _domPos(domElement, event) {
+        let rect = domElement.getBoundingClientRect();
+        // console.log( 'rect.width', rect.width );
+        let x = event.pageX - rect.left - window.scrollX;
+        // console.log( 'x', x );
+        let y = event.pageY - rect.top - window.scrollY;
+        // We use object literal shorthand
+        return [ x, y ];
     }
 
-    renderIsPencil( canvas ) {
-        if ( !canvas ) {
-            logError( 'canvas is unavailable for rendering IsPencil' );
-        }
-        const content = this._getDataValue( canvas, 'data-ispcl-content' );
-        if ( content !== undefined) {
-            // console.log('open canvas', this._uid);
-            this.segmentArray = JSON.parse(content);
-        }
-        for (let segment of this.segmentArray) {
-            this._renderSegment( canvas, segment );
-        }        
+    _showRubberLine() {        
+        const rubberLineDomElement = this._currentRubberDomElement();
+        rubberLineDomElement.style.display = 'block';
     }
 
-    _renderSegment( canvas, segment ) {
-        console.log( 'render segment', segment );
-        this.ctx = canvas.getContext('2d');
-        this.ctx.strokeStyle = segment.color;
-        this.ctx.lineWidth = segment.width;
-        if ( segment.pts.length > 1 ) {
-            let p = segment.pts[ 0 ];
-            this.ctx.beginPath();
-            this.ctx.moveTo(p.x, p.y);
-            for (let i = 1; i < segment.pts.length; i++) {
-                p = segment.pts[ i ];
-                this.ctx.moveTo(p.x, p.y);
-            }
-            this.ctx.stroke();
-        }
+    _showRubberRect() {        
+        const rubberLineDomElement = this._currentRubberDomElement();
+        rubberLineDomElement.style.display = 'block';
     }
-}
 
-function norm2(v) {
-    return v.x * v.x + v.y * v.y;
-}
+    _hideRubberLine() {
+        const rubberLineDomElement = this._currentRubberDomElement();
+        rubberLineDomElement.style.display = 'none';
+    }
 
-/**
- * Returns the vector from p1 to p2 as an object with properties 'x' and 'y'
- * 
- * @param {point} p1
- * @param {point} p2
- */
-function vector(p1, p2) {
-    return {
-        x: p2.x - p1.x,
-        y: p2.y - p1.y
+    _hideRubberRect() {
+        const rubberLineDomElement = this._currentRubberDomElement();
+        rubberLineDomElement.style.display = 'none';
+    }
+
+    _setRubberLineAnchor( startPos ) {             
+        const rubberLineDomElement = this._currentRubberDomElement();
+        rubberLineDomElement.style.left = startPos[ 0 ] + 'px';
+        rubberLineDomElement.style.top = startPos[ 1 ] + 'px';
+        rubberLineDomElement.style.height = '0px';
+        rubberLineDomElement.style.width = '0px';
+        this._rubberLineAnchor = startPos;
+    }
+
+    _setRubberRectAnchor( startPos ) {    
+        // Initial values
+        this.rWidth = 10;
+        this.rHeight = 10;   
+        let left = startPos[ 0 ] - this.rWidth;
+        if ( left < 0) {
+            left = 0;
+            this.rWidth = left;
+        }
+        let top = startPos[ 1 ] - this.rHeight;  
+        if ( top < 0 ) {
+            top = 0;
+            this.rHeight = top;
+        } 
+        const rubberRectDomElement = this._currentRubberDomElement();
+        rubberRectDomElement.style.left = left + 'px';
+        rubberRectDomElement.style.top = top + 'px';
+        rubberRectDomElement.style.height = startPos.x - left + 'px';
+        rubberRectDomElement.style.width = startPos.y - top + 'px';
+        rubberRectDomElement.style.transform = 'rotate(0rad)';
+        this._rubberRectAnchor = startPos;
+    }
+
+    _drawRubberLine( endPos ) {          
+        const rubberLineDomElement = this._currentRubberDomElement();
+        let dx = endPos[ 0 ] - this._rubberLineAnchor[ 0 ];
+        let dy = endPos[ 1 ] - this._rubberLineAnchor[ 1 ];
+        let length = Math.sqrt(dx * dx + dy * dy);
+        let angle = Math.atan2(dy, dx);
+        rubberLineDomElement.style.width = length + 'px';
+        rubberLineDomElement.style['transform-origin'] = 'top left';
+        rubberLineDomElement.style.transform = 'rotate(' + angle + 'rad)';
+    }
+
+    _drawRubberRect( endPos ) {          
+        const rubberRectDomElement = this._currentRubberDomElement();
+        let dx = endPos[ 0 ] - this._rubberRectAnchor[ 0 ] + this.rWidth;
+        let dy = endPos[ 1 ] - this._rubberRectAnchor[ 1 ] + this.rHeight;
+        rubberRectDomElement.style.width = dx + 'px';
+        rubberRectDomElement.style.height = dy + 'px';
     }
 }
 

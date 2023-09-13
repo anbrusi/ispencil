@@ -18,9 +18,9 @@
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import { Widget, toWidget } from '@ckeditor/ckeditor5-widget';
-import { refreshCanvas } from './ispen/ispenengine';
 import IsPencilInsertCommand from './ispencilinsertcommand';
 import IsPencilPosCommand from './ispencilposcommand';
+import IsCanvas from './ispen/iscanvas';
 import IsResizing from './resize/isresizing';
 
 export default class IsPencilEditing extends Plugin {
@@ -40,16 +40,15 @@ export default class IsPencilEditing extends Plugin {
         this.pendingCanvasDomElements = new Set();
         this.editor.editing.view.on( 'render', () => { 
             for ( let canvasDomElement of this.pendingCanvasDomElements ) {
-                refreshCanvas( canvasDomElement );
-                // console.log( 'refreshed canvas', canvas );
+                this.isCanvas.isPenEngine.redraw( canvasDomElement );
                 this.pendingCanvasDomElements.delete( canvasDomElement );
             };
         } );
         this.editor.commands.add( 'isPencilInsertCommand', new IsPencilInsertCommand( this.editor ) );
         this.editor.commands.add( 'isPencilPosCommand', new IsPencilPosCommand( this.editor ) );
-        // this.editor.commands.add( 'isPencilSizeCommand', new IsPencilSizeCommand( this.editor ) );
 
         this.isResizing = this.editor.plugins.get( IsResizing );
+        this.isCanvas = this.editor.plugins.get( IsCanvas );
     }
 
     _defineSchema() {
@@ -70,7 +69,7 @@ export default class IsPencilEditing extends Plugin {
             isObject: true,            
             allowIn: 'isPencil',
             // These are the model attribute names, which may differ from view attributte names
-            allowAttributes: [ 'width', 'height', 'content', 'uid' ]
+            allowAttributes: [ 'width', 'height', 'content', 'uid', 'version' ]
         } );
     }
 
@@ -101,14 +100,15 @@ export default class IsPencilEditing extends Plugin {
             view: {
                 name: 'canvas',
                 classes: 'ispcl-canvas', // This is a fake class, with no definition in CSS
-                attributes: [ 'width', 'height', 'data-ispcl-uid', 'data-ispcl-content' ], // These view attributes are mandatory
+                attributes: [ 'width', 'height', 'data-ispcl-uid', 'data-ispcl-content', 'data-ispcl-version' ], // These view attributes are mandatory
             },
             model: ( viewElement, { writer} ) => {
                 const attributes = {
                     width: viewElement.getAttribute( 'width' ),
                     height: viewElement.getAttribute( 'height' ),
                     uid: viewElement.getAttribute( 'data-ispcl-uid' ),
-                    content: viewElement.getAttribute( 'data-ispcl-content' )
+                    content: viewElement.getAttribute( 'data-ispcl-content' ),
+                    version: viewElement.getAttribute( 'data-ispcl-version' )
                 }
                 const modelElement = writer.createElement( 'isPencilCanvas', attributes );
                 // console.log( 'Upcast canvas', modelElement );
@@ -132,7 +132,7 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'dataDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height', 'uid', 'content' ]
+                attributes: [ 'width', 'height', 'uid', 'content', 'version' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
@@ -152,11 +152,6 @@ export default class IsPencilEditing extends Plugin {
                 const widgetViewElement = toWidget( widgetBasicViewElement, viewWriter, { hasSelectionHandle: true } );
                 const resizerViewElement = this.isResizing.createResizer( viewWriter, modelElement.getAttribute( 'position' ) );
                 viewWriter.insert(viewWriter.createPositionAt(widgetViewElement, 'end' ), resizerViewElement);
-                /*
-                widgetViewElement.on( 'change', () => {
-                    console.log( 'widgetViewElement changed' );
-                } );
-                */
                 return widgetViewElement;
             }
         } );
@@ -164,7 +159,7 @@ export default class IsPencilEditing extends Plugin {
         conversion.for( 'editingDowncast' ).elementToElement( {
             model: {
                 name: 'isPencilCanvas',
-                attributes: [ 'width', 'height', 'uid', 'content' ]
+                attributes: [ 'width', 'height', 'uid', 'content', 'version' ]
             },
             view: (modelElement, { writer: viewWriter } ) => {
                 // class is a string with all classes to be used in addition to automatic CKEditor classes
@@ -262,5 +257,6 @@ function makeIsPencilCanvasViewAttributes( modelElement ) {
     // Due to the needed minus in the attribute names, dot access does not work and square bracket notation is needed.
     attributes[ 'data-ispcl-uid' ] = modelElement.getAttribute( 'uid' );
     attributes[ 'data-ispcl-content' ] = modelElement.getAttribute( 'content' );
+    attributes[ 'data-ispcl-version' ] = modelElement.getAttribute( 'version' );
     return attributes;
 }

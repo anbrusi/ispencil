@@ -39,27 +39,33 @@ export default class IsResizing extends Plugin {
          */
         this._proposedSize;
 
+        /**
+         * this.showResizer sets this.lastSelectedModelElement to the displayed element and this.hideResizer resets it to null
+         */
+        this.lastSelectedModelElement = null;
+
         // Resizer dimensions and visibility must be set in a selection handler and not as a reaction
         // to canvas mouse clicks, because a click on a positioning handle would not handle the resizer
         this.editor.editing.downcastDispatcher.on( 'selection', (evt, data) => {
-            // console.log( 'On selection' );
+            console.log( 'IsResizing#onSelectionHandler event', evt );
+            console.log( 'IsResizing#onSelectionHandler data', data );
             const selectedModelElement = data.selection.getSelectedElement();
             if ( selectedModelElement?.name == 'isPencil' ) {
                 if ( this._selectedModelElement ) {
                     // There was an old selected model element. Hide the resizer
-                    this.setCurrentWidget( this._selectedModelElement );
-                    this.hideResizer();
+                    console.log( 'IsResizing#selectionHandler (widget selected) hide resizer in possibly old model element', this._selectedModelElement );
+                    this.hideResizer( this._selectedModelElement);
                 }
                 // A new model element is selected. Sync and show the resizer
+                console.log( 'IsResizing#selectionHandler (widget selected) sync and show resizer in selected model element', selectedModelElement );
+                this.syncResizerDim( selectedModelElement );
+                this.showResizer( selectedModelElement);
                 this._selectedModelElement = selectedModelElement;
-                this.setCurrentWidget( selectedModelElement );
-                this.syncResizerDim();
-                this.showResizer();
             } else {
                 // Deselect only
                 if ( this._selectedModelElement ) {
-                    this.setCurrentWidget( this._selectedModelElement );
-                    this.hideResizer();
+                    console.log( 'IsResizing#selectionHandler (no widget selected) hide old resizer in model element', this._selectedModelElement );
+                    this.hideResizer( this._selectedModelElement );
                 }
             }
         } );
@@ -103,79 +109,99 @@ export default class IsResizing extends Plugin {
                     domElement.appendChild( leftHandle );
                     domElement.appendChild( rightHandle );
             }
+            let rubberLine = new Template( {
+                tag: 'div',
+                attributes: {
+                    class: 'ispcl-rubber-line',
+                    style: {
+                        border: '2px solid green',
+                        position: 'absolute',
+                        width: '0px',
+                        height: '0px',
+                        display: 'none'
+                    }
+                }
+            } ).render();
+            domElement.appendChild( rubberLine );
             return domElement;
         } );
         return resizerViewElement;
     }
 
     /**
-     * Sets the current widget view element from a widget model element
+     * Syncs resizer width and height to canvas width and height in widgetModelElement
+     * If widgetModelElement === null, this method has no effect
      * 
-     * @param {model element} widgetModelElement 
+     * @param {@ckeditor/ckeditor5-engine/src/model/element} widgetModelElement 
      */
-    setCurrentWidget( widgetModelElement ) {        
-        this._widgetViewElement = this.editor.editing.mapper.toViewElement( widgetModelElement );
-    }
-
-    /**
-     * If there is a current widget view element this method syncs resizer width and height to canvas width and height
-     * If this._widgetViewElement === null, this method has no effect
-     */
-    syncResizerDim() {
-        const canvasViewElement = this.getChildByClass( 'ispcl-canvas' );
-        const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
-        console.log( 'resizer', resizerViewElement );
-        if ( canvasViewElement && resizerViewElement ) {
-            this.editor.editing.view.change( viewWriter => {
-                let width = canvasViewElement.getAttribute( 'width' ) + 'px';
-                let height = canvasViewElement.getAttribute( 'height' ) + 'px';
-                viewWriter.setStyle('width', width, resizerViewElement );
-                viewWriter.setStyle( 'height', height, resizerViewElement );
-            } );
+    syncResizerDim( widgetModelElement ) {
+        if ( widgetModelElement ) {
+            const widgetViewElement = this.editor.editing.mapper.toViewElement( widgetModelElement )
+            const canvasViewElement = this.getChildByClass( widgetViewElement, 'ispcl-canvas' );
+            const resizerViewElement = this.getChildByClass( widgetViewElement, 'ck-widget__resizer' );
+            console.log( 'IsResizing#syncResizerDim resizerViewElement', resizerViewElement );
+            if ( canvasViewElement && resizerViewElement ) {
+                this.editor.editing.view.change( viewWriter => {
+                    let width = canvasViewElement.getAttribute( 'width' ) + 'px';
+                    let height = canvasViewElement.getAttribute( 'height' ) + 'px';
+                    viewWriter.setStyle('width', width, resizerViewElement );
+                    viewWriter.setStyle( 'height', height, resizerViewElement );
+                } );
+            }
         }
     }
 
     /**
      * Shows the resizer if this.widgetViewElement != null, has no effect else
      */
-    showResizer() {
-        const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
-        console.log( 'resizer', resizerViewElement );
+
+    /**
+     * 
+     * @param {@ckeditor/ckeditor5-engine/src/model/element} widgetModelElement 
+     */
+    showResizer( widgetModelElement ) {
+        const widgetViewElement = this.editor.editing.mapper.toViewElement( widgetModelElement )
+        const resizerViewElement = this.getChildByClass( widgetViewElement, 'ck-widget__resizer' );
+        console.log( 'IsResizing#showResizer resizerViewElement', resizerViewElement );
         if ( resizerViewElement ) {
             this.editor.editing.view.change( viewWriter => {
                 viewWriter.setStyle( 'display', 'block', resizerViewElement );
             } );
         }
+        this.lastSelectedModelElement = widgetModelElement;
     }
 
     /**
-     * Hides the resizer if this.widgetViewElement != null, has no effect else
+     * Hides the resizer if widgetModelElement != null, has no effect else
+     * 
+     * @param {@ckeditor/ckeditor5-engine/src/model/element} widgetModelElement 
      */
-    hideResizer() {
-        const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
-        console.log( 'resizer', resizerViewElement );
+    hideResizer( widgetModelElement ) {
+        const widgetViewElement = this.editor.editing.mapper.toViewElement( widgetModelElement )
+        const resizerViewElement = this.getChildByClass( widgetViewElement, 'ck-widget__resizer' );
+        console.log( 'IsResizing#hideResizer resizerViewElement', resizerViewElement );
         if ( resizerViewElement ) {
             this.editor.editing.view.change( viewWriter => {
                 viewWriter.setStyle( 'display', 'none', resizerViewElement );
             } );
         }
+        this.lastSelectedModelElement = null;
     }
 
     /**
-     * Returns a child view of this._widgetViewElement having class classname or null if there is none
+     * Returns a child of viewElement with class name className or null if there is none
      * 
+     * @param {@ckeditor/ckeditor5-engine/src/view/element} viewElement 
      * @param {string} className 
      * @returns 
      */
-    getChildByClass( className ) {
-        // Do not compare to null, because this.setCurrentWidget might return undefined
-        if ( !this._widgetViewElement ) {
-            return null;
-        }
-        const children = this._widgetViewElement.getChildren();
-        for ( let child of children ) {
-            if ( child.hasClass( className ) ) {
-                return child;
+    getChildByClass(viewElement, className ) {
+        if ( viewElement ) {
+            const children = viewElement.getChildren();
+            for ( let child of children ) {
+                if ( child.hasClass( className ) ) {
+                    return child;
+                }
             }
         }
         return null;
@@ -198,7 +224,6 @@ export default class IsResizing extends Plugin {
             this._handlePosition = handlePosition( domTarget );
             this._originalCoordinates = extractCoordinates(domEventData.domEvent);
             this._originalResizerSize = this._getResizerSize();
-            // console.log( 'originalCoordinates', this._originalCoordinates );
         }
     }
 
@@ -223,18 +248,18 @@ export default class IsResizing extends Plugin {
      * @param {*} domEventData 
      */
     _mouseMoveListener( event, domEventData ) {
-        if ( this._activeResizer ) {
-            // console.log( 'event', event );
-            // console.log( 'domEventData', domEventData );
+        if ( this._activeResizer && this._selectedModelElement ) {
+            const position = this._selectedModelElement.getAttribute( 'position ')
+            const selectedWidgetElement = this.editor.editing.mapper.toViewElement( this._selectedModelElement );
+            const resizerViewElement = this.getChildByClass( selectedWidgetElement, 'ck-widget__resizer' );
             const newCoordinates = extractCoordinates(domEventData);
-            this._proposedSize = this._proposeNewSize( newCoordinates );
+            this._proposedSize = this._proposeNewSize( position,  newCoordinates );
             console.log( 'proposedNewSize', this._proposedSize );
-            const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
             this.editor.editing.view.change( (writer) => {
                 writer.setStyle( {
                     width: this._proposedSize.width + 'px',
                     height: this._proposedSize.height + 'px'
-                },  this._widgetViewElement );
+                },  selectedWidgetElement );
                 writer.setStyle( {
                     width: this._proposedSize.width + 'px',
                     height: this._proposedSize.height + 'px'
@@ -243,8 +268,9 @@ export default class IsResizing extends Plugin {
         }
     }
 
-    _getResizerSize( ) {
-        const resizerViewElement = this.getChildByClass( 'ck-widget__resizer' );
+   _getResizerSize ( ) {
+        const selectedViewElement = this.editor.editing.mapper.toViewElement( this._selectedModelElement )
+        const resizerViewElement = this.getChildByClass( selectedViewElement, 'ck-widget__resizer' );
         if ( resizerViewElement ) {
             return {
                 width: parseInt( resizerViewElement.getStyle( 'width' ) ),
@@ -255,17 +281,20 @@ export default class IsResizing extends Plugin {
 
     /**
      * Returns the size of the resizer from page coordinates 'newCoordinates' of the mouse
+     * if the model attribute position is 'center' the widget increases to the left and the right,
+     * so incremental mouse movements count twice for the width
      * 
+     * @param {string} position
      * @param {point} newCoordinates 
      * @returns 
      */
-    _proposeNewSize( newCoordinates ) {
+    _proposeNewSize( position, newCoordinates ) {
         let dx = newCoordinates.x - this._originalCoordinates.x;
         let dy = newCoordinates.y - this._originalCoordinates.y;
         if ( this._handlePosition == 'left' ) {
             dx = - dx;
         }
-        if ( this._widgetViewElement.hasClass( 'ispcl-centerpos' ) ) {
+        if ( position == 'center' ) {
             dx *= 2;
         }
         let newSize = {

@@ -52,7 +52,7 @@ class dispatcher {
         $html .= '<body>';
         $html .= '<h1>isPencil5_2</h1>';
         $html .= '<form action="index.php" method="POST" name="ispencil5_2">';
-        // Get properties transmitted ffrom previous view
+        // Get properties transmitted from previous view
         $this->getPersistentValues();
         // Handle POST's of previous view
         $html .= $this->handle();
@@ -61,10 +61,10 @@ class dispatcher {
         // Store persistent properties for the benefit of the next view
         $html .= $this->setPersistentValues();
         $html .= '</form>';
+        $html .= '</body>';
         // Atach the IsPencil rendering script globally
         $params = array('interpolation' => 'bezier');
         $html .= self::ispclRenderingScript($params);
-        $html .= '</body>';
         return $html;
     }
     /**

@@ -3,6 +3,12 @@
 import Command from '@ckeditor/ckeditor5-core/src/command';
 import uid from '@ckeditor/ckeditor5-utils/src/uid';
 
+/**
+ * This will be recorded as data-ispcl-version in the dom canvas and in the view, as version in the model.
+ * The purpose is to inshure backward compatibility, when new features are added
+ */
+const version = '1.0';
+
 export default class IsPencilInsertCommand extends Command {
 
     /**
@@ -19,7 +25,8 @@ export default class IsPencilInsertCommand extends Command {
             },
             isPencilCanvas: {
                 width: config.get( 'isPencil.width' ),
-                height: config.get( 'isPencil.height' )
+                height: config.get( 'isPencil.height' ),
+                version: version
             }
         };
 

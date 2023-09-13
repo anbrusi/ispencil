@@ -11,13 +11,6 @@ body {
 .ispcl-thinborder {
     border: 1px solid black;
 }
-.ispcl-active {
-    border: 3px solid lime;
-    margin-bottom: 0px;
-}
-.ispcl-inactive {
-    background-color: gainsboro;
-}
 .ispcl-leftpos {
     float: left;
     margin-right: 10px;
